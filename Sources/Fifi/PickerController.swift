@@ -68,6 +68,7 @@ final class PickerController {
     }
 
     func show() {
+        NSLog("Fifi[picker] show()")
         // Don't clobber the restore target when Fifi itself is still frontmost
         // (a previous hand-back may not have completed yet).
         let frontmost = NSWorkspace.shared.frontmostApplication

@@ -46,12 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         createStatusItem()
-        observeSettings()
 
-        if let settings = settingsStore?.settings {
-            apply(settings: settings)
-        }
-
+        // Callbacks must be wired before apply(settings:) registers the hotkey,
+        // or a launch-time registration failure fires into nil.
         hotKeyCenter.onActivate = { [weak self] in
             // Called synchronously from the Carbon handler on the main thread;
             // stay synchronous so activation keeps its user-event context.
@@ -59,8 +56,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.pickerController?.toggle()
             }
         }
+        hotKeyCenter.onRegisterFailed = { [weak self] shortcut, status in
+            MainActor.assumeIsolated {
+                self?.warnHotkeyConflict(shortcut: shortcut, status: status)
+            }
+        }
+
+        observeSettings()
+        if let settings = settingsStore?.settings {
+            apply(settings: settings)
+        }
 
         scheduleCleanup()
+    }
+
+    private var warnedHotkeyConflict = false
+
+    private func warnHotkeyConflict(shortcut: String, status: OSStatus) {
+        guard !warnedHotkeyConflict else { return }
+        warnedHotkeyConflict = true
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Picker shortcut unavailable"
+        alert.informativeText = "Fifi couldn’t register “\(shortcut)” (error \(status)) — another app probably owns it. You can still open the picker by clicking the Fifi menu bar icon, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -207,6 +228,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func statusItemClicked() {
         let event = NSApp.currentEvent
         let isMenuClick = event.map { $0.type == .rightMouseUp || $0.modifierFlags.contains(.control) } ?? false
+        NSLog("Fifi[status] clicked type=%ld menu=%d", event?.type.rawValue ?? 0, isMenuClick ? 1 : 0)
         if isMenuClick {
             showStatusMenu()
         } else {

@@ -3,6 +3,7 @@ import Foundation
 
 final class HotKeyCenter {
     var onActivate: (() -> Void)?
+    var onRegisterFailed: ((String, OSStatus) -> Void)?
 
     private var eventHandler: EventHandlerRef?
     private var hotKeyRef: EventHotKeyRef?
@@ -33,6 +34,7 @@ final class HotKeyCenter {
             guard hotKeyID.signature == HotKeyCenter.fourCharacterCode("FIFI"), hotKeyID.id == 1 else { return noErr }
 
             let center = Unmanaged<HotKeyCenter>.fromOpaque(userData).takeUnretainedValue()
+            NSLog("Fifi[hotkey] fired")
             // Synchronous on purpose: the Carbon handler runs on the main thread
             // during event dispatch, and macOS 14+ only honors NSApp.activate
             // while the triggering user-input event context is still current.
@@ -68,8 +70,10 @@ final class HotKeyCenter {
         )
         if registerStatus == noErr, let ref {
             hotKeyRef = ref
+            NSLog("Fifi[hotkey] registered %@", shortcut)
         } else {
-            NSLog("Fifi failed to register hotkey %@: %d", shortcut, registerStatus)
+            NSLog("Fifi[hotkey] register FAILED %@ status=%d (another app may already own this shortcut)", shortcut, registerStatus)
+            onRegisterFailed?(shortcut, registerStatus)
         }
     }
 
