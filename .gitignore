@@ -1,0 +1,8 @@
+.build/
+*.app
+build/
+*.iconset/
+.DS_Store
+*.log
+*.icns
+.swiftpm/
