@@ -1,5 +1,4 @@
 import AppKit
-import Combine
 import Foundation
 import FifiCore
 import ImageIO
@@ -12,10 +11,12 @@ import UniformTypeIdentifiers
     private let settingsStore: SettingsStore
     private let storeQueue = DispatchQueue(label: "com.leafiy.fifi.clipboard-store", qos: .utility)
 
+    // NSPasteboard has no change notifications; a 150 ms changeCount poll is
+    // effectively free, so it needs no user-facing setting.
+    private static let pollingInterval: TimeInterval = 0.15
+
     private var timer: Timer?
-    private var settingsCancellable: AnyCancellable?
     private var lastChangeCount = NSPasteboard.general.changeCount
-    private var pollingIntervalMS: Int
     private var evaluator = IgnoreRuleEvaluator(ignoredBundleIDs: [], regexRules: [])
 
     init(historyStore: HistoryStore, blobStore: BlobStore, ignoreRulesStore: IgnoreRulesStore, settingsStore: SettingsStore) {
@@ -23,14 +24,7 @@ import UniformTypeIdentifiers
         self.blobStore = blobStore
         self.ignoreRulesStore = ignoreRulesStore
         self.settingsStore = settingsStore
-        pollingIntervalMS = settingsStore.settings.pollingIntervalMS
         reloadIgnoreRules()
-
-        settingsCancellable = settingsStore.$settings.dropFirst().sink { [weak self] settings in
-            Task { @MainActor in
-                self?.settingsDidChange(settings)
-            }
-        }
     }
 
     func start() {
@@ -57,16 +51,9 @@ import UniformTypeIdentifiers
         }
     }
 
-    private func settingsDidChange(_ settings: AppSettings) {
-        guard settings.pollingIntervalMS != pollingIntervalMS else { return }
-        pollingIntervalMS = settings.pollingIntervalMS
-        guard timer != nil else { return }
-        stop()
-        scheduleTimer()
-    }
 
     private func scheduleTimer() {
-        let interval = Double(max(10, pollingIntervalMS)) / 1000.0
+        let interval = Self.pollingInterval
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.pollPasteboard()
@@ -82,25 +69,34 @@ import UniformTypeIdentifiers
         guard changeCount != lastChangeCount else { return }
         lastChangeCount = changeCount
 
-        guard !settingsStore.settings.isRecordingPaused else { return }
+        guard !settingsStore.settings.isRecordingPaused else {
+            Self.log("recording paused; copy not captured")
+            return
+        }
         capture(from: pasteboard)
     }
 
     private func capture(from pasteboard: NSPasteboard) {
         let types = pasteboard.types ?? []
-        guard !shouldSkip(types: types) else { return }
+        guard !shouldSkip(types: types) else {
+            Self.log("skipped self-write/transient pasteboard")
+            return
+        }
 
         let app = NSWorkspace.shared.frontmostApplication
         let sourceAppBundleID = app?.bundleIdentifier
-        guard !evaluator.shouldIgnore(bundleID: sourceAppBundleID) else { return }
+        guard !evaluator.shouldIgnore(bundleID: sourceAppBundleID) else {
+            Self.log("ignored copy from app \(sourceAppBundleID ?? "unknown")")
+            return
+        }
 
-        let urls = urlObjects(from: pasteboard)
+        let urls = fileURLs(from: pasteboard)
         let image = imagePayload(from: pasteboard)
         let candidate = CaptureCandidate(
             plainText: pasteboard.string(forType: .string),
             hasRichText: types.contains(.rtf),
-            urlString: urlString(from: pasteboard, urls: urls),
-            filePaths: filePaths(from: urls),
+            urlString: urlString(from: pasteboard, types: types),
+            filePaths: urls.map(\.path),
             imageData: image?.data,
             imageUTI: image?.uti,
             imagePixelSize: image?.pixelSize,
@@ -109,9 +105,15 @@ import UniformTypeIdentifiers
             sourceAppBundleID: sourceAppBundleID
         )
 
-        guard let classified = ClipboardClassifier.classify(candidate) else { return }
+        guard let classified = ClipboardClassifier.classify(candidate) else {
+            Self.log("no usable content; types=\(types.map(\.rawValue).joined(separator: ","))")
+            return
+        }
         let textForIgnore = candidate.plainText ?? candidate.urlString
-        guard !evaluator.shouldIgnore(text: textForIgnore) else { return }
+        guard !evaluator.shouldIgnore(text: textForIgnore) else {
+            Self.log("ignored copy matching regex rule")
+            return
+        }
 
         persist(classified: classified, candidate: candidate)
     }
@@ -171,33 +173,33 @@ import UniformTypeIdentifiers
                     fileReference: classified.fileReference,
                     metadataJSON: classified.metadataJSON
                 )
-                try historyStore.save(item)
+                let saved = try historyStore.save(item)
+                Self.log("saved \(saved.type.rawValue) item id=\(saved.id) bytes=\(saved.byteSize)")
             } catch {
                 NSLog("Fifi failed to persist clipboard capture: %@", String(describing: error))
             }
         }
     }
 
-    private func urlObjects(from pasteboard: NSPasteboard) -> [URL] {
-        let objects = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) ?? []
+    private func fileURLs(from pasteboard: NSPasteboard) -> [URL] {
+        // File URLs only: unrestricted NSURL pasteboard reading coerces plain
+        // copied strings into URLs, misclassifying ordinary text.
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        let objects = pasteboard.readObjects(forClasses: [NSURL.self], options: options) ?? []
         return objects.compactMap { object in
             if let url = object as? URL { return url }
             if let url = object as? NSURL { return url as URL }
             return nil
-        }
+        }.filter(\.isFileURL)
     }
 
-    private func urlString(from pasteboard: NSPasteboard, urls: [URL]) -> String? {
-        if let url = urls.first(where: { !$0.isFileURL }) {
-            return url.absoluteString
-        }
-        return pasteboard.string(forType: .URL)
-    }
-
-    private func filePaths(from urls: [URL]) -> [String] {
-        urls
-            .filter(\.isFileURL)
-            .map(\.path)
+    private func urlString(from pasteboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> String? {
+        // Trust only an explicitly declared URL type; plain URL text is still
+        // detected downstream by the classifier.
+        guard types.contains(.URL) else { return nil }
+        let value = pasteboard.string(forType: .URL)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value, !value.isEmpty else { return nil }
+        return value
     }
 
     private func imagePayload(from pasteboard: NSPasteboard) -> (data: Data, uti: String, pixelSize: PixelSize?)? {
@@ -245,8 +247,11 @@ import UniformTypeIdentifiers
         return thumbnailData as Data
     }
 
+    private nonisolated static func log(_ message: String) {
+        NSLog("Fifi[monitor] %@", message)
+    }
+
     deinit {
         timer?.invalidate()
-        settingsCancellable?.cancel()
     }
 }

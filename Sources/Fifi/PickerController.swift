@@ -38,7 +38,7 @@ final class PickerController {
         self.panel = panel
 
         let loader = ThumbnailLoader(blobStore: blobStore)
-        let contentView = NSHostingView(rootView: PickerView(viewModel: viewModel, thumbnailLoader: loader))
+        let contentView = PickerHostingView(rootView: PickerView(viewModel: viewModel, thumbnailLoader: loader))
         contentView.wantsLayer = true
         contentView.layer?.cornerRadius = 12
         contentView.layer?.masksToBounds = true
@@ -78,7 +78,8 @@ final class PickerController {
 
         guard settingsStore.settings.selectionBehavior == .paste else { return }
         app?.activate(options: [.activateIgnoringOtherApps])
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+        // Give the previous app time to regain key focus before synthesizing ⌘V.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             Task { @MainActor in
                 PasteboardWriter.paste()
             }
@@ -181,4 +182,10 @@ final class PickerController {
 
 private final class PickerPanel: NSPanel {
     override var canBecomeKey: Bool { true }
+}
+
+private final class PickerHostingView<Content: View>: NSHostingView<Content> {
+    // The panel is non-activating and the app stays in the background, so the
+    // first click must act on the row instead of being eaten as a focus click.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }

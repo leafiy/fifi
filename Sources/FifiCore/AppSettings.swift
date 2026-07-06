@@ -12,7 +12,6 @@ public struct AppSettings: Sendable, Equatable, Codable {
     public var maxStorageMB: Int
     public var launchAtLogin: Bool
     public var isRecordingPaused: Bool
-    public var pollingIntervalMS: Int
 
     public init(
         hotkeyShortcut: String = "cmd+shift+v",
@@ -21,8 +20,7 @@ public struct AppSettings: Sendable, Equatable, Codable {
         retentionDays: Int = 30,
         maxStorageMB: Int = 512,
         launchAtLogin: Bool = false,
-        isRecordingPaused: Bool = false,
-        pollingIntervalMS: Int = 150
+        isRecordingPaused: Bool = false
     ) {
         self.hotkeyShortcut = hotkeyShortcut
         self.selectionBehavior = selectionBehavior
@@ -31,7 +29,6 @@ public struct AppSettings: Sendable, Equatable, Codable {
         self.maxStorageMB = maxStorageMB
         self.launchAtLogin = launchAtLogin
         self.isRecordingPaused = isRecordingPaused
-        self.pollingIntervalMS = pollingIntervalMS
     }
 
     public var cleanupPolicy: CleanupPolicy {

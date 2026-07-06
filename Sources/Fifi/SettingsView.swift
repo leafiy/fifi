@@ -75,13 +75,6 @@ struct SettingsView: View {
             .pickerStyle(.radioGroup)
 
             Toggle("Launch at login", isOn: settingBinding(\.launchAtLogin))
-
-            Stepper(
-                "Polling interval: \(settingsStore.settings.pollingIntervalMS) ms",
-                value: settingBinding(\.pollingIntervalMS),
-                in: 50...1000,
-                step: 50
-            )
         }
         .padding(.top, 8)
     }
