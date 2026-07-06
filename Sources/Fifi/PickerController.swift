@@ -52,7 +52,7 @@ final class PickerController {
     }
 
     func toggle() {
-        panel.isVisible ? hide() : show()
+        panel.isVisible ? hide(restoreFocus: true) : show()
     }
 
     func show() {
@@ -60,24 +60,30 @@ final class PickerController {
         positionPanel()
         viewModel.reload()
         installMonitors()
+        // Activate the app so clicks and keystrokes are reliably delivered to
+        // the panel; focus is handed back on every dismissal path below.
+        NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
         viewModel.focusToken += 1
     }
 
-    func hide() {
+    func hide(restoreFocus: Bool = false) {
         panel.orderOut(nil)
         removeMonitors()
+        if restoreFocus {
+            returnApp?.activate(options: [.activateIgnoringOtherApps])
+            returnApp = nil
+        }
     }
 
     func activate(item: ClipboardItem) {
+        NSLog("Fifi[picker] activating item id=%ld type=%@", item.id, item.type.rawValue)
         PasteboardWriter.copy(item, blobStore: blobStore)
         historyService.markUsed(id: item.id)
-        let app = returnApp
-        hide()
+        hide(restoreFocus: true)
 
         guard settingsStore.settings.selectionBehavior == .paste else { return }
-        app?.activate(options: [.activateIgnoringOtherApps])
         // Give the previous app time to regain key focus before synthesizing ⌘V.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             Task { @MainActor in
@@ -166,7 +172,7 @@ final class PickerController {
             viewModel.activateSelected()
             return true
         case kVK_Escape:
-            hide()
+            hide(restoreFocus: true)
             return true
         default:
             return false

@@ -11,25 +11,28 @@ import FifiCore
     static func copy(_ item: ClipboardItem, blobStore: BlobStore) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setData(Data(), forType: markerType)
 
+        var wrote = false
         switch item.type {
         case .text, .richText, .color:
-            pasteboard.setString(text(for: item, blobStore: blobStore), forType: .string)
+            wrote = pasteboard.setString(text(for: item, blobStore: blobStore), forType: .string)
         case .url:
             let value = text(for: item, blobStore: blobStore)
-            pasteboard.setString(value, forType: .string)
-            if let url = URL(string: value) {
-                pasteboard.writeObjects([url as NSURL as NSPasteboardWriting])
-            }
+            wrote = pasteboard.setString(value, forType: .string)
+            _ = pasteboard.setString(value, forType: .URL)
         case .image:
-            writeImage(item, blobStore: blobStore, to: pasteboard)
+            wrote = writeImage(item, blobStore: blobStore, to: pasteboard)
         case .file:
-            writeFiles(item, to: pasteboard)
+            wrote = writeFiles(item, to: pasteboard)
         case .unknown:
-            pasteboard.setString(item.previewText, forType: .string)
+            wrote = pasteboard.setString(item.previewText, forType: .string)
         }
 
+        // Marker last: its failure must never block the real content, and its
+        // presence tells the monitor to skip this self-write.
+        _ = pasteboard.setData(Data(), forType: markerType)
+        NSLog("Fifi[pasteboard] copy id=%ld type=%@ ok=%d changeCount=%ld",
+              item.id, item.type.rawValue, wrote ? 1 : 0, pasteboard.changeCount)
     }
 
     static func paste() {
@@ -61,35 +64,36 @@ import FifiCore
         return item.contentText ?? item.previewText
     }
 
-    private static func writeImage(_ item: ClipboardItem, blobStore: BlobStore, to pasteboard: NSPasteboard) {
+    private static func writeImage(_ item: ClipboardItem, blobStore: BlobStore, to pasteboard: NSPasteboard) -> Bool {
         guard let blobPath = item.blobPath else {
             NSLog("Fifi image item is missing blob path")
-            return
+            return false
         }
 
         do {
             let data = try blobStore.data(atRelativePath: blobPath)
             let ext = URL(fileURLWithPath: blobPath).pathExtension.lowercased()
-            pasteboard.setData(data, forType: ext == "tiff" || ext == "tif" ? .tiff : .png)
+            return pasteboard.setData(data, forType: ext == "tiff" || ext == "tif" ? .tiff : .png)
         } catch {
             NSLog("Fifi failed to read image blob %@: %@", blobPath, String(describing: error))
+            return false
         }
     }
 
-    private static func writeFiles(_ item: ClipboardItem, to pasteboard: NSPasteboard) {
+    private static func writeFiles(_ item: ClipboardItem, to pasteboard: NSPasteboard) -> Bool {
         let paths = (item.fileReference ?? "")
             .split(separator: "\n")
             .map { String($0) }
             .filter { !$0.isEmpty }
 
         guard !paths.isEmpty else {
-            pasteboard.setString(item.previewText, forType: .string)
-            return
+            return pasteboard.setString(item.previewText, forType: .string)
         }
 
         let urls = paths.map { URL(fileURLWithPath: $0) as NSURL as NSPasteboardWriting }
-        pasteboard.writeObjects(urls)
-        pasteboard.setString(paths.joined(separator: "\n"), forType: .string)
+        let wrote = pasteboard.writeObjects(urls)
+        _ = pasteboard.setString(paths.joined(separator: "\n"), forType: .string)
+        return wrote
     }
 
     private static func accessibilityTrusted() -> Bool {
