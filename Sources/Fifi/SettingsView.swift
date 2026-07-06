@@ -65,7 +65,7 @@ struct SettingsView: View {
                     .onSubmit(commitHotkey)
                 Text(hotkeyError ?? "Press Return to save. Use tokens like cmd+shift+v.")
                     .font(.caption)
-                    .foregroundStyle(hotkeyError == nil ? .secondary : .red)
+                    .foregroundStyle(hotkeyError == nil ? Color.secondary : Color.red)
             }
 
             Picker("Selection", selection: settingBinding(\.selectionBehavior)) {

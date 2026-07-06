@@ -16,7 +16,8 @@ public struct DatabaseError: Error {
 
 private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
-public final class Database {
+// @unchecked: `handle` is only touched under `lock`.
+public final class Database: @unchecked Sendable {
     private var handle: OpaquePointer?
     // SQLite is opened FULLMUTEX, which serializes individual statements, but not
     // multi-statement transactions. The recursive lock makes transaction bodies

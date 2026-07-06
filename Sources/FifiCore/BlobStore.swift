@@ -1,6 +1,7 @@
 import Foundation
 
-public final class BlobStore {
+// @unchecked: all stored properties are immutable and FileManager is thread-safe.
+public final class BlobStore: @unchecked Sendable {
     private let rootDirectory: URL
     private let blobsDirectory: URL
     private let thumbnailsDirectory: URL

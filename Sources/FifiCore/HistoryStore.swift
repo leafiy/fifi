@@ -1,6 +1,7 @@
 import Foundation
 
-public final class HistoryStore {
+// @unchecked: stateless besides an immutable reference to the internally-locked Database.
+public final class HistoryStore: @unchecked Sendable {
     private let database: Database
 
     public init(database: Database) throws {

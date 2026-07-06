@@ -322,7 +322,8 @@ private struct PickerRowView: View {
 
     private static let relativeDateFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .named
+        formatter.dateTimeStyle = .named
+        formatter.unitsStyle = .short
         return formatter
     }()
 }

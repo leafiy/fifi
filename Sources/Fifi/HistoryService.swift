@@ -118,7 +118,7 @@ final class HistoryService {
         Self.deleteBlobs(for: item, blobStore: blobStore)
     }
 
-    private static func deleteBlobs(for item: ClipboardItem, blobStore: BlobStore) {
+    nonisolated private static func deleteBlobs(for item: ClipboardItem, blobStore: BlobStore) {
         if let blobPath = item.blobPath {
             blobStore.delete(relativePath: blobPath)
         }

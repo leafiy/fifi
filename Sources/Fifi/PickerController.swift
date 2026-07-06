@@ -108,16 +108,22 @@ final class PickerController {
 
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
-            return MainActor.assumeIsolated {
-                guard self.panel.isVisible else { return event }
-                return self.handleKey(event) ? nil : event
+            // Local monitors always fire on the main thread; route the non-Sendable
+            // NSEvent through a captured var so assumeIsolated returns Void.
+            var result: NSEvent? = event
+            MainActor.assumeIsolated {
+                if self.panel.isVisible, self.handleKey(event) {
+                    result = nil
+                }
             }
+            return result
         }
 
         globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+            let location = event.locationInWindow
             Task { @MainActor in
                 guard let self, self.panel.isVisible else { return }
-                if !self.panel.frame.contains(event.locationInWindow) {
+                if !self.panel.frame.contains(location) {
                     self.hide()
                 }
             }
