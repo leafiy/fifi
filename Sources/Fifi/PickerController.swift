@@ -56,7 +56,12 @@ final class PickerController {
     }
 
     func show() {
-        returnApp = NSWorkspace.shared.frontmostApplication
+        // Don't clobber the restore target when Fifi itself is still frontmost
+        // (a previous hand-back may not have completed yet).
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        if frontmost?.bundleIdentifier != Bundle.main.bundleIdentifier {
+            returnApp = frontmost
+        }
         positionPanel()
         viewModel.reload()
         installMonitors()
@@ -65,15 +70,29 @@ final class PickerController {
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
+        // macOS 14+ treats activation as cooperative and can silently deny a
+        // repeat request right after we handed focus to another app. Verify on
+        // the next runloop turn and retry so the panel actually receives input.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            Task { @MainActor in
+                guard let self, self.panel.isVisible else { return }
+                if !self.panel.isKeyWindow {
+                    NSLog("Fifi[picker] panel not key after show (appActive=%d); retrying", NSApp.isActive ? 1 : 0)
+                    NSApp.activate(ignoringOtherApps: true)
+                    self.panel.makeKey()
+                    self.viewModel.focusToken += 1
+                }
+            }
+        }
         viewModel.focusToken += 1
     }
 
     func hide(restoreFocus: Bool = false) {
         panel.orderOut(nil)
         removeMonitors()
-        if restoreFocus {
-            returnApp?.activate(options: [.activateIgnoringOtherApps])
-            returnApp = nil
+        if restoreFocus, let returnApp {
+            returnApp.activate(options: [.activateIgnoringOtherApps])
+            self.returnApp = nil
         }
     }
 
