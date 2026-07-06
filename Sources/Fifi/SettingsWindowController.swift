@@ -12,14 +12,15 @@ final class SettingsWindowController: NSWindowController {
         ignoreRulesStore: IgnoreRulesStore,
         monitorReload: @escaping () -> Void
     ) {
+        // Initial size only; the window stays freely resizable with no min/max
+        // clamp, and the grouped forms adapt to whatever size the user picks.
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 540),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Fifi Settings"
-        window.minSize = NSSize(width: 500, height: 440)
         window.isReleasedWhenClosed = false
 
         let view = SettingsView(

@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindowController: SettingsWindowController?
 
     private var statusItem: NSStatusItem?
+    private var statusMenu: NSMenu?
     private var openPickerItem: NSMenuItem?
     private var pauseRecordingItem: NSMenuItem?
     private var cleanupTimer: Timer?
@@ -140,6 +141,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Fifi")
             image?.isTemplate = true
             button.image = image
+            button.target = self
+            button.action = #selector(statusItemClicked)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
         let menu = NSMenu()
@@ -178,7 +182,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         quitItem.target = self
         menu.addItem(quitItem)
 
-        item.menu = menu
+        // No permanent item.menu: a left click must reach statusItemClicked to
+        // open the picker; the menu is attached transiently for right clicks.
+        self.statusMenu = menu
         self.statusItem = item
         self.openPickerItem = openPickerItem
         self.pauseRecordingItem = pauseRecordingItem
@@ -194,6 +200,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openPicker() {
         pickerController?.toggle()
+    }
+
+    @objc private func statusItemClicked() {
+        let event = NSApp.currentEvent
+        let isMenuClick = event.map { $0.type == .rightMouseUp || $0.modifierFlags.contains(.control) } ?? false
+        if isMenuClick {
+            showStatusMenu()
+        } else {
+            pickerController?.toggle()
+        }
+    }
+
+    private func showStatusMenu() {
+        guard let item = statusItem, let menu = statusMenu else { return }
+        item.menu = menu
+        item.button?.performClick(nil)
+        item.menu = nil
     }
 
     @objc private func toggleRecordingPause() {

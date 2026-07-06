@@ -45,8 +45,6 @@ struct SettingsView: View {
             ignoreTab
                 .tabItem { Text("Ignore") }
         }
-        .padding(16)
-        .frame(minWidth: 500, minHeight: 440)
         .onAppear {
             hotkeyDraft = settingsStore.settings.hotkeyShortcut
             refreshUsage()
@@ -59,24 +57,27 @@ struct SettingsView: View {
 
     private var generalTab: some View {
         Form {
-            VStack(alignment: .leading, spacing: 6) {
-                TextField("cmd+shift+v", text: $hotkeyDraft)
-                    .textFieldStyle(.roundedBorder)
+            Section {
+                TextField("Global shortcut", text: $hotkeyDraft, prompt: Text("cmd+shift+v"))
                     .onSubmit(commitHotkey)
-                Text(hotkeyError ?? "Press Return to save. Use tokens like cmd+shift+v.")
+                Text(hotkeyError ?? "Press Return to save. Combine cmd, shift, option, ctrl with a key, e.g. cmd+shift+v.")
                     .font(.caption)
                     .foregroundStyle(hotkeyError == nil ? Color.secondary : Color.red)
+            } header: {
+                Text("Shortcut")
             }
 
-            Picker("Selection", selection: settingBinding(\.selectionBehavior)) {
-                Text("Paste immediately").tag(SelectionBehavior.paste)
-                Text("Copy only").tag(SelectionBehavior.copy)
+            Section {
+                Picker("On selection", selection: settingBinding(\.selectionBehavior)) {
+                    Text("Paste immediately").tag(SelectionBehavior.paste)
+                    Text("Copy only").tag(SelectionBehavior.copy)
+                }
+                Toggle("Launch at login", isOn: settingBinding(\.launchAtLogin))
+            } header: {
+                Text("Behavior")
             }
-            .pickerStyle(.radioGroup)
-
-            Toggle("Launch at login", isOn: settingBinding(\.launchAtLogin))
         }
-        .padding(.top, 8)
+        .formStyle(.grouped)
     }
 
     private func commitHotkey() {
@@ -97,75 +98,58 @@ struct SettingsView: View {
     // MARK: - Storage
 
     private var storageTab: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            intSettingRow(
-                "Max history count",
-                keyPath: \.maxHistoryCount,
-                range: 0...100_000,
-                step: 100,
-                unlimitedHint: "0 = unlimited"
-            )
-            intSettingRow(
-                "Retention days",
-                keyPath: \.retentionDays,
-                range: 0...3_650,
-                step: 1,
-                unlimitedHint: "0 = unlimited"
-            )
-            intSettingRow(
-                "Max storage MB",
-                keyPath: \.maxStorageMB,
-                range: 0...100_000,
-                step: 64,
-                unlimitedHint: "0 = unlimited"
-            )
-
-            Divider()
-
-            HStack {
-                Text("Current usage")
-                Spacer()
-                Text("\(usageCount) items · \(formatMegabytes(usageBytes))")
+        Form {
+            Section {
+                limitRow("Max history count", keyPath: \.maxHistoryCount, range: 0...100_000, step: 100)
+                limitRow("Retention days", keyPath: \.retentionDays, range: 0...3_650, step: 1)
+                limitRow("Max storage (MB)", keyPath: \.maxStorageMB, range: 0...100_000, step: 64)
+            } header: {
+                Text("Limits")
+            } footer: {
+                Text("0 means unlimited.")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                Button("Refresh", action: refreshUsage)
             }
 
-            Button("Clear History…") {
-                showingClearConfirmation = true
-            }
-            .alert("Clear clipboard history?", isPresented: $showingClearConfirmation) {
-                Button("Clear", role: .destructive) {
-                    historyService.clearAll(keepPinned: true)
-                    refreshUsage()
+            Section {
+                LabeledContent("Current usage") {
+                    Text("\(usageCount) items · \(formatMegabytes(usageBytes))")
+                        .foregroundStyle(.secondary)
                 }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Pinned items will be kept. This cannot be undone.")
+                HStack {
+                    Button("Refresh", action: refreshUsage)
+                    Spacer()
+                    Button("Clear History…", role: .destructive) {
+                        showingClearConfirmation = true
+                    }
+                }
+            } header: {
+                Text("Usage")
             }
-
-            Spacer()
         }
-        .padding(.top, 12)
+        .formStyle(.grouped)
+        .alert("Clear clipboard history?", isPresented: $showingClearConfirmation) {
+            Button("Clear", role: .destructive) {
+                historyService.clearAll(keepPinned: true)
+                refreshUsage()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Pinned items will be kept. This cannot be undone.")
+        }
     }
 
-    private func intSettingRow(
+    private func limitRow(
         _ title: String,
         keyPath: WritableKeyPath<AppSettings, Int>,
         range: ClosedRange<Int>,
-        step: Int,
-        unlimitedHint: String? = nil
+        step: Int
     ) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                if let unlimitedHint {
-                    Text(unlimitedHint)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+        HStack {
+            Text(title)
             Spacer()
             TextField("0", value: settingBinding(keyPath), formatter: Self.integerFormatter)
+                .textFieldStyle(.roundedBorder)
                 .frame(width: 72)
                 .multilineTextAlignment(.trailing)
             Stepper("", value: settingBinding(keyPath), in: range, step: step)
@@ -182,112 +166,105 @@ struct SettingsView: View {
     // MARK: - Ignore
 
     private var ignoreTab: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ignoredAppsSection
-            Divider()
-            regexRulesSection
-        }
-        .padding(.top, 8)
-    }
-
-    private var ignoredAppsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Ignored Apps")
-                .font(.headline)
-
-            List(ignoredApps) { app in
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(app.appName?.isEmpty == false ? app.appName! : app.bundleID)
-                        Text(app.bundleID)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button {
-                        removeIgnoredApp(app)
-                    } label: {
-                        Image(systemName: "minus.circle")
-                    }
-                    .buttonStyle(.borderless)
+        Form {
+            Section {
+                if ignoredApps.isEmpty {
+                    Text("No ignored apps")
+                        .foregroundStyle(.secondary)
                 }
-            }
-            .frame(height: 90)
-
-            HStack {
-                TextField("Bundle identifier", text: $bundleIDToAdd)
-                    .textFieldStyle(.roundedBorder)
-                Button("Add") {
-                    addIgnoredApp(bundleID: bundleIDToAdd, appName: nil)
-                }
-                .disabled(bundleIDToAdd.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                Menu("Running Apps") {
-                    ForEach(runningApps) { app in
-                        Button("\(app.name) (\(app.bundleID))") {
-                            addIgnoredApp(bundleID: app.bundleID, appName: app.name)
-                        }
-                    }
-                }
-                Button("Refresh") {
-                    refreshRunningApps()
-                }
-            }
-            if let ignoreAppsError {
-                Text(ignoreAppsError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-        }
-    }
-
-    private var regexRulesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Regex Rules")
-                .font(.headline)
-
-            List(regexRules) { rule in
-                HStack {
-                    Toggle("", isOn: Binding(
-                        get: { regexRules.first(where: { $0.id == rule.id })?.enabled ?? rule.enabled },
-                        set: { enabled in setRegexRule(rule, enabled: enabled) }
-                    ))
-                    .labelsHidden()
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(rule.pattern)
-                            .lineLimit(1)
-                        if let label = rule.label, !label.isEmpty {
-                            Text(label)
+                ForEach(ignoredApps) { app in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(app.appName?.isEmpty == false ? app.appName! : app.bundleID)
+                            Text(app.bundleID)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        Spacer()
+                        Button {
+                            removeIgnoredApp(app)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
                     }
-                    Spacer()
-                    Button {
-                        removeRegexRule(rule)
-                    } label: {
-                        Image(systemName: "minus.circle")
-                    }
-                    .buttonStyle(.borderless)
                 }
+                HStack {
+                    TextField("Bundle identifier", text: $bundleIDToAdd)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Add") {
+                        addIgnoredApp(bundleID: bundleIDToAdd, appName: nil)
+                    }
+                    .disabled(bundleIDToAdd.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Menu("Running Apps") {
+                        ForEach(runningApps) { app in
+                            Button("\(app.name) (\(app.bundleID))") {
+                                addIgnoredApp(bundleID: app.bundleID, appName: app.name)
+                            }
+                        }
+                    }
+                    .fixedSize()
+                }
+                if let ignoreAppsError {
+                    Text(ignoreAppsError)
+                        .font(.caption)
+                        .foregroundStyle(Color.red)
+                }
+            } header: {
+                Text("Ignored Apps")
             }
-            .frame(height: 90)
 
-            HStack {
-                TextField("Pattern", text: $regexPatternToAdd)
-                    .textFieldStyle(.roundedBorder)
-                TextField("Label", text: $regexLabelToAdd)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 120)
-                Button("Add", action: addRegexRule)
-                    .disabled(regexPatternToAdd.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            if let regexError {
-                Text(regexError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+            Section {
+                if regexRules.isEmpty {
+                    Text("No rules")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(regexRules) { rule in
+                    HStack {
+                        Toggle("", isOn: Binding(
+                            get: { regexRules.first(where: { $0.id == rule.id })?.enabled ?? rule.enabled },
+                            set: { enabled in setRegexRule(rule, enabled: enabled) }
+                        ))
+                        .labelsHidden()
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(rule.pattern)
+                                .lineLimit(1)
+                            if let label = rule.label, !label.isEmpty {
+                                Text(label)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Button {
+                            removeRegexRule(rule)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+                HStack {
+                    TextField("Pattern", text: $regexPatternToAdd)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Label (optional)", text: $regexLabelToAdd)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                    Button("Add", action: addRegexRule)
+                        .disabled(regexPatternToAdd.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                if let regexError {
+                    Text(regexError)
+                        .font(.caption)
+                        .foregroundStyle(Color.red)
+                }
+            } header: {
+                Text("Ignored Text (Regex)")
             }
         }
+        .formStyle(.grouped)
     }
 
     private func reloadIgnoreData() {
