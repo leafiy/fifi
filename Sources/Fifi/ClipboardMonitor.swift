@@ -175,6 +175,9 @@ import UniformTypeIdentifiers
                 )
                 let saved = try historyStore.save(item)
                 Self.log("saved \(saved.type.rawValue) item id=\(saved.id) bytes=\(saved.byteSize)")
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .fifiHistoryDidChange, object: nil)
+                }
             } catch {
                 NSLog("Fifi failed to persist clipboard capture: %@", String(describing: error))
             }
@@ -254,4 +257,8 @@ import UniformTypeIdentifiers
     deinit {
         timer?.invalidate()
     }
+}
+
+extension Notification.Name {
+    static let fifiHistoryDidChange = Notification.Name("com.leafiy.fifi.history-did-change")
 }

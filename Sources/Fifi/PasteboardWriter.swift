@@ -36,7 +36,10 @@ import FifiCore
     }
 
     static func paste() {
-        guard accessibilityTrusted() else { return }
+        guard accessibilityTrusted() else {
+            warnAccessibilityOnce()
+            return
+        }
         guard let source = CGEventSource(stateID: .combinedSessionState),
               let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false) else {
@@ -111,5 +114,23 @@ import FifiCore
 
         NSLog("Fifi needs Accessibility permission to paste into the frontmost app")
         return false
+    }
+
+    private static var warnedAccessibility = false
+
+    private static func warnAccessibilityOnce() {
+        guard !warnedAccessibility else { return }
+        warnedAccessibility = true
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Fifi can’t paste automatically"
+        alert.informativeText = "The item WAS copied — press ⌘V to paste it manually.\n\nFor automatic paste, enable Fifi under System Settings → Privacy & Security → Accessibility. After rebuilding the app you must re-add it (the ad-hoc signature changes every build)."
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "OK")
+        if alert.runModal() == .alertFirstButtonReturn {
+            let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+            NSWorkspace.shared.open(url)
+        }
     }
 }

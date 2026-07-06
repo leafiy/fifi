@@ -14,6 +14,7 @@ final class PickerController {
     private var returnApp: NSRunningApplication?
     private var localKeyMonitor: Any?
     private var globalClickMonitor: Any?
+    private var historyObserver: NSObjectProtocol?
 
     init(historyService: HistoryService, blobStore: BlobStore, settingsStore: SettingsStore) {
         self.historyService = historyService
@@ -49,6 +50,17 @@ final class PickerController {
                 self?.activate(item: item)
             }
         }
+
+        // Refresh the visible list when the monitor captures a new item, but
+        // never while the user is mid-search.
+        historyObserver = NotificationCenter.default.addObserver(
+            forName: .fifiHistoryDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.panel.isVisible, self.viewModel.query.isEmpty else { return }
+                self.viewModel.reload()
+            }
+        }
     }
 
     func toggle() {
@@ -80,6 +92,7 @@ final class PickerController {
                 guard let self, self.panel.isVisible else { return }
                 if !self.panel.isKeyWindow {
                     NSLog("Fifi[picker] panel not key after show (appActive=%d); retrying", NSApp.isActive ? 1 : 0)
+                    NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
                     NSApp.activate(ignoringOtherApps: true)
                     self.panel.makeKey()
                     self.viewModel.focusToken += 1
@@ -204,6 +217,7 @@ final class PickerController {
         // deinit is nonisolated: touch stored properties directly instead of removeMonitors().
         if let localKeyMonitor { NSEvent.removeMonitor(localKeyMonitor) }
         if let globalClickMonitor { NSEvent.removeMonitor(globalClickMonitor) }
+        if let historyObserver { NotificationCenter.default.removeObserver(historyObserver) }
     }
 }
 
