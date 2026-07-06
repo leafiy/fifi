@@ -65,11 +65,13 @@ final class PickerController {
         positionPanel()
         viewModel.reload()
         installMonitors()
-        // Activate the app so clicks and keystrokes are reliably delivered to
-        // the panel; focus is handed back on every dismissal path below.
-        NSApp.activate(ignoringOtherApps: true)
-        panel.makeKeyAndOrderFront(nil)
+        // Order the panel front FIRST, then activate — the order Maccy uses.
+        // Activating an accessory app with no visible window can be declined,
+        // and an inactive app's makeKey alone is rejected by the WindowServer
+        // ("a foreground app can't steal keyboard focus").
         panel.orderFrontRegardless()
+        panel.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
         // macOS 14+ treats activation as cooperative and can silently deny a
         // repeat request right after we handed focus to another app. Verify on
         // the next runloop turn and retry so the panel actually receives input.

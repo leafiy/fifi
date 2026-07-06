@@ -33,9 +33,11 @@ final class HotKeyCenter {
             guard hotKeyID.signature == HotKeyCenter.fourCharacterCode("FIFI"), hotKeyID.id == 1 else { return noErr }
 
             let center = Unmanaged<HotKeyCenter>.fromOpaque(userData).takeUnretainedValue()
-            DispatchQueue.main.async {
-                center.onActivate?()
-            }
+            // Synchronous on purpose: the Carbon handler runs on the main thread
+            // during event dispatch, and macOS 14+ only honors NSApp.activate
+            // while the triggering user-input event context is still current.
+            // An async hop loses that context and activation gets denied.
+            center.onActivate?()
             return noErr
         }
 

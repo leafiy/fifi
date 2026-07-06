@@ -53,7 +53,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         hotKeyCenter.onActivate = { [weak self] in
-            Task { @MainActor in
+            // Called synchronously from the Carbon handler on the main thread;
+            // stay synchronous so activation keeps its user-event context.
+            MainActor.assumeIsolated {
                 self?.pickerController?.toggle()
             }
         }
