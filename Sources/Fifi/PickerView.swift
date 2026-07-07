@@ -28,7 +28,7 @@ struct PickerView: View {
         .frame(width: Metrics.pickerWidth, height: Metrics.pickerHeight)
         .background(.regularMaterial)
         .onAppear(perform: focusSearch)
-        .onChange(of: viewModel.focusToken) { _ in
+        .onChange(of: viewModel.focusToken) {
             focusSearch()
         }
     }
@@ -89,7 +89,7 @@ struct PickerView: View {
                     .padding(.vertical, LeafiyDesign.Spacing.xs)
                 }
                 .id(viewModel.listRevision)
-                .onChange(of: viewModel.selectedIndex) { index in
+                .onChange(of: viewModel.selectedIndex) { _, index in
                     guard viewModel.items.indices.contains(index) else { return }
                     withAnimation(.easeOut(duration: 0.12)) {
                         proxy.scrollTo(viewModel.items[index].id, anchor: .center)

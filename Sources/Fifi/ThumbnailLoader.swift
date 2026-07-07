@@ -64,7 +64,7 @@ struct ThumbnailView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 5))
         .onAppear(perform: load)
-        .onChange(of: item.thumbnailPath) { _ in
+        .onChange(of: item.thumbnailPath) {
             image = nil
             loadedPath = nil
             load()
