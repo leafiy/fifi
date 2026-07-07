@@ -27,13 +27,15 @@ targets.append(
             .product(name: "LeafiyUI", package: "leafiy-ui"),
             .product(name: "LeafiyUICore", package: "leafiy-ui")
         ],
-        path: "Sources/Fifi"
+        path: "Sources/Fifi",
+        resources: [.process("Resources")]
     )
 )
 #endif
 
 let package = Package(
     name: "Fifi",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v14)
     ],

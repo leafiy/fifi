@@ -39,6 +39,12 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Info.plist "$APP/Contents/Info.plist"
 cp "$BIN_DIR/fifi" "$APP/Contents/MacOS/Fifi"
 cp fifi.png "$APP/Contents/Resources/fifi.png"
+if [ -d "$BIN_DIR/Fifi_Fifi.bundle" ]; then
+    cp -R "$BIN_DIR/Fifi_Fifi.bundle" "$APP/Contents/Resources/"
+fi
+if [ -d "$BIN_DIR/LeafiyUI_LeafiyUI.bundle" ]; then
+    cp -R "$BIN_DIR/LeafiyUI_LeafiyUI.bundle" "$APP/Contents/Resources/"
+fi
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 make_icns fifi.png "$APP/Contents/Resources/Fifi.icns"
 
