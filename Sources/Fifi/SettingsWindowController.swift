@@ -5,6 +5,7 @@ import FifiCore
 @MainActor
 final class SettingsWindowController: NSWindowController {
     private var didCenter = false
+    private var currentContentSize = SettingsView.Pane.general.windowSize
 
     init(
         settingsStore: SettingsStore,
@@ -16,26 +17,26 @@ final class SettingsWindowController: NSWindowController {
         // so tab switches feel like a settings panel, not a zoom transition.
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: SettingsView.Pane.general.windowSize),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Fifi Settings"
-        window.minSize = NSSize(width: 500, height: 220)
         window.isReleasedWhenClosed = false
+
+        super.init(window: window)
 
         let view = SettingsView(
             historyService: historyService,
             ignoreRulesStore: ignoreRulesStore,
             monitorReload: monitorReload,
-            onPaneChanged: { [weak window] pane in
-                Self.resize(window, toContentSize: pane.windowSize)
+            onPaneChanged: { [weak self] pane in
+                self?.currentContentSize = pane.windowSize
+                Self.resize(self?.window, toContentSize: pane.windowSize)
             }
         )
         .environmentObject(settingsStore)
         window.contentView = NSHostingView(rootView: view)
-
-        super.init(window: window)
     }
 
     required init?(coder: NSCoder) {
@@ -44,6 +45,7 @@ final class SettingsWindowController: NSWindowController {
 
     func show() {
         guard let window else { return }
+        Self.resize(window, toContentSize: currentContentSize)
         if !didCenter {
             window.center()
             didCenter = true
