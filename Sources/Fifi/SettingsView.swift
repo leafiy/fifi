@@ -21,9 +21,9 @@ struct SettingsView: View {
 
         var windowSize: NSSize {
             switch self {
-            case .general: return NSSize(width: 640, height: 268)
-            case .storage: return NSSize(width: 640, height: 286)
-            case .ignore: return NSSize(width: 640, height: 318)
+            case .general: return NSSize(width: 520, height: 268)
+            case .storage: return NSSize(width: 520, height: 286)
+            case .ignore: return NSSize(width: 520, height: 318)
             }
         }
     }
@@ -100,7 +100,7 @@ struct SettingsView: View {
                         }
                     }
                     .labelsHidden()
-                    .frame(width: 116)
+                    .frame(width: 104)
 
                     Picker("", selection: $secondHotkeyModifier) {
                         ForEach(HotkeyModifier.allCases) { modifier in
@@ -108,7 +108,7 @@ struct SettingsView: View {
                         }
                     }
                     .labelsHidden()
-                    .frame(width: 116)
+                    .frame(width: 104)
 
                     TextField("V", text: $hotkeyKey)
                         .textFieldStyle(.roundedBorder)
@@ -129,7 +129,7 @@ struct SettingsView: View {
                         Text("Copy only").tag(SelectionBehavior.copy)
                     }
                     .labelsHidden()
-                    .frame(width: 180)
+                    .frame(width: 220)
                 }
                 SettingsRow("Launch at login") {
                     Toggle("", isOn: settingBinding(\.launchAtLogin))
@@ -294,6 +294,7 @@ struct SettingsView: View {
                 SettingsRow("Add app") {
                     TextField("Bundle identifier", text: $bundleIDToAdd)
                         .textFieldStyle(.roundedBorder)
+                        .frame(width: 206)
                     Button("Add") {
                         addIgnoredApp(bundleID: bundleIDToAdd, appName: nil)
                     }
@@ -354,9 +355,10 @@ struct SettingsView: View {
                 SettingsRow("Add rule") {
                     TextField("Pattern", text: $regexPatternToAdd)
                         .textFieldStyle(.roundedBorder)
+                        .frame(width: 160)
                     TextField("Label (optional)", text: $regexLabelToAdd)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 120)
+                        .frame(width: 110)
                     Button("Add", action: addRegexRule)
                         .disabled(regexPatternToAdd.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -564,7 +566,7 @@ private struct SettingsFootnote: View {
 }
 
 private enum SettingsMetrics {
-    static let labelWidth: CGFloat = 132
+    static let labelWidth: CGFloat = 116
     static let rowSpacing: CGFloat = 12
     static let contentIndent: CGFloat = labelWidth + rowSpacing
 }
