@@ -23,7 +23,7 @@ struct SettingsView: View {
             switch self {
             case .general: return NSSize(width: 540, height: 268)
             case .storage: return NSSize(width: 520, height: 286)
-            case .ignore: return NSSize(width: 660, height: 360)
+            case .ignore: return NSSize(width: 660, height: 280)
             }
         }
     }
@@ -261,8 +261,8 @@ struct SettingsView: View {
 
     private var ignoreTab: some View {
         SettingsPane {
-            SettingsSection("Ignored Apps") {
-                SettingsContentColumn {
+            SettingsSection("Ignored Apps", titleIndent: 0) {
+                SettingsContentColumn(indent: 0) {
                     if ignoredApps.isEmpty {
                         Text("No ignored apps")
                             .foregroundStyle(.secondary)
@@ -309,8 +309,8 @@ struct SettingsView: View {
                 }
             }
 
-            SettingsSection("Ignored Text (Regex)") {
-                SettingsContentColumn {
+            SettingsSection("Ignored Text (Regex)", titleIndent: 0) {
+                SettingsContentColumn(indent: 0) {
                     if regexRules.isEmpty {
                         Text("No rules")
                             .foregroundStyle(.secondary)
@@ -497,10 +497,16 @@ private struct SettingsPane<Content: View>: View {
 
 private struct SettingsSection<Content: View>: View {
     private let title: String
+    private let titleIndent: CGFloat
     @ViewBuilder private let content: Content
 
-    init(_ title: String, @ViewBuilder content: () -> Content) {
+    init(
+        _ title: String,
+        titleIndent: CGFloat = SettingsMetrics.contentIndent,
+        @ViewBuilder content: () -> Content
+    ) {
         self.title = title
+        self.titleIndent = titleIndent
         self.content = content()
     }
 
@@ -508,7 +514,7 @@ private struct SettingsSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.headline)
-                .padding(.leading, SettingsMetrics.contentIndent)
+                .padding(.leading, titleIndent)
             VStack(alignment: .leading, spacing: 8) {
                 content
             }
@@ -556,9 +562,11 @@ private struct SettingsFootnote: View {
 }
 
 private struct SettingsContentColumn<Content: View>: View {
+    private let indent: CGFloat
     @ViewBuilder private let content: Content
 
-    init(@ViewBuilder content: () -> Content) {
+    init(indent: CGFloat = SettingsMetrics.contentIndent, @ViewBuilder content: () -> Content) {
+        self.indent = indent
         self.content = content()
     }
 
@@ -567,7 +575,7 @@ private struct SettingsContentColumn<Content: View>: View {
             content
         }
         .font(.callout)
-        .padding(.leading, SettingsMetrics.contentIndent)
+        .padding(.leading, indent)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
