@@ -21,9 +21,9 @@ struct SettingsView: View {
 
         var windowSize: NSSize {
             switch self {
-            case .general: return NSSize(width: 520, height: 300)
-            case .storage: return NSSize(width: 520, height: 318)
-            case .ignore: return NSSize(width: 520, height: 350)
+            case .general: return NSSize(width: 520, height: 292)
+            case .storage: return NSSize(width: 520, height: 306)
+            case .ignore: return NSSize(width: 520, height: 338)
             }
         }
     }
@@ -78,8 +78,8 @@ struct SettingsView: View {
                 .frame(width: 264)
                 Spacer()
             }
-            .padding(.top, 12)
-            .padding(.bottom, 12)
+            .padding(.top, SettingsMetrics.outerPadding)
+            .padding(.bottom, SettingsMetrics.sectionSpacing)
 
             Divider()
 
@@ -514,12 +514,12 @@ private struct SettingsPane<Content: View>: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: SettingsMetrics.sectionSpacing) {
                 content
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 18)
-            .padding(.bottom, 16)
+            .padding(.horizontal, SettingsMetrics.outerPadding)
+            .padding(.top, SettingsMetrics.outerPadding)
+            .padding(.bottom, SettingsMetrics.outerPadding)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -539,7 +539,7 @@ private struct SettingsSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.headline)
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: SettingsMetrics.rowSpacing) {
                 content
             }
         }
@@ -587,8 +587,10 @@ private struct SettingsFootnote: View {
 }
 
 private enum SettingsMetrics {
+    static let outerPadding: CGFloat = 16
     static let labelWidth: CGFloat = 116
-    static let rowSpacing: CGFloat = 12
+    static let rowSpacing: CGFloat = 8
+    static let sectionSpacing: CGFloat = 12
     static let contentIndent: CGFloat = labelWidth + rowSpacing
 }
 
