@@ -591,15 +591,15 @@ private struct StorageSettingsPane: View {
         range: ClosedRange<Int>,
         step: Int
     ) -> some View {
-        LabeledContent(title) {
-            HStack(spacing: LeafiyDesign.Spacing.s) {
-                TextField(title, value: value, format: .number)
-                    .labelsHidden()
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: Metrics.numberFieldWidth)
-                Stepper(title, value: value, in: range, step: step)
-                    .labelsHidden()
-            }
+        HStack(spacing: LeafiyDesign.Spacing.s) {
+            Text(title)
+            Spacer()
+            TextField(title, value: value, format: .number)
+                .labelsHidden()
+                .multilineTextAlignment(.trailing)
+                .frame(width: Metrics.numberFieldWidth)
+            Stepper(title, value: value, in: range, step: step)
+                .labelsHidden()
         }
     }
 
@@ -655,23 +655,28 @@ private struct IgnoreSettingsPane: View {
                         ignoredAppRow(app)
                     }
                 }
-                LabeledContent("Add app") {
-                    HStack(spacing: LeafiyDesign.Spacing.s) {
-                        TextField("Bundle identifier", text: $bundleIDText)
-                        Button("Add", action: addManualIgnoredApp)
-                            .disabled(bundleIDText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        Menu("Running Apps") {
-                            if runningApps.isEmpty {
-                                Text("No running apps")
-                            } else {
-                                ForEach(runningApps) { app in
-                                    Button(app.name) {
-                                        addIgnoredApp(bundleID: app.bundleID, appName: app.name)
-                                    }
+                TextField(
+                    "Bundle identifier",
+                    text: $bundleIDText,
+                    prompt: Text("Bundle identifier, e.g. com.apple.Safari")
+                )
+                .labelsHidden()
+                HStack(spacing: LeafiyDesign.Spacing.s) {
+                    Menu("Running Apps") {
+                        if runningApps.isEmpty {
+                            Text("No running apps")
+                        } else {
+                            ForEach(runningApps) { app in
+                                Button(app.name) {
+                                    addIgnoredApp(bundleID: app.bundleID, appName: app.name)
                                 }
                             }
                         }
                     }
+                    .fixedSize()
+                    Spacer()
+                    Button("Add", action: addManualIgnoredApp)
+                        .disabled(bundleIDText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 if !ignoredAppsMessage.isEmpty {
                     Text(ignoredAppsMessage)
@@ -688,13 +693,22 @@ private struct IgnoreSettingsPane: View {
                         regexRuleRow(rule)
                     }
                 }
-                LabeledContent("Add rule") {
-                    HStack(spacing: LeafiyDesign.Spacing.s) {
-                        TextField("Pattern", text: $regexPatternText)
-                        TextField("Label (optional)", text: $regexLabelText)
-                        Button("Add", action: addRegexRule)
-                            .disabled(regexPatternText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
+                TextField(
+                    "Pattern",
+                    text: $regexPatternText,
+                    prompt: Text("Regex pattern, e.g. ^secret-")
+                )
+                .labelsHidden()
+                TextField(
+                    "Label",
+                    text: $regexLabelText,
+                    prompt: Text("Label (optional)")
+                )
+                .labelsHidden()
+                HStack {
+                    Spacer()
+                    Button("Add", action: addRegexRule)
+                        .disabled(regexPatternText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 if !regexMessage.isEmpty {
                     Text(regexMessage)
