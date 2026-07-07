@@ -4,8 +4,6 @@ import Foundation
 import FifiCore
 
 @MainActor enum PasteboardWriter {
-    static let markerType = NSPasteboard.PasteboardType("com.leafiy.fifi.self-write")
-
     private static var didPromptForAccessibility = false
 
     static func copy(_ item: ClipboardItem, blobStore: BlobStore) {
@@ -28,9 +26,11 @@ import FifiCore
             wrote = pasteboard.setString(item.previewText, forType: .string)
         }
 
-        // Marker last: its failure must never block the real content, and its
-        // presence tells the monitor to skip this self-write.
-        _ = pasteboard.setData(Data(), forType: markerType)
+        NotificationCenter.default.post(
+            name: .fifiPasteboardDidSelfWrite,
+            object: nil,
+            userInfo: ["changeCount": pasteboard.changeCount]
+        )
         NSLog("Fifi[pasteboard] copy id=%ld type=%@ ok=%d changeCount=%ld",
               item.id, item.type.rawValue, wrote ? 1 : 0, pasteboard.changeCount)
     }

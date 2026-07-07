@@ -43,14 +43,30 @@ struct PickerView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 0) {
+                    VStack(spacing: 0) {
                         ForEach(rowModels) { row in
-                            PickerRowView(item: row.item, isSelected: row.index == viewModel.selectedIndex, thumbnailLoader: thumbnailLoader)
-                                .id(row.index)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
+                            PickerRowView(
+                                item: row.item,
+                                index: row.index,
+                                isSelected: row.index == viewModel.selectedIndex,
+                                thumbnailLoader: thumbnailLoader,
+                                onActivate: {
                                     viewModel.activate(item: row.item)
+                                },
+                                onCopyToClipboard: {
+                                    viewModel.copyToClipboard(item: row.item)
+                                },
+                                onContextCopyToClipboard: {
+                                    viewModel.copyToClipboard(id: row.item.id)
+                                },
+                                onDelete: {
+                                    viewModel.deleteItem(id: row.item.id)
+                                },
+                                onContextDelete: {
+                                    viewModel.deleteItem(id: row.item.id)
                                 }
+                            )
+                                .id(row.item.id)
                                 .onAppear {
                                     if row.index == viewModel.items.count - 1 {
                                         viewModel.loadMore()
@@ -60,10 +76,11 @@ struct PickerView: View {
                     }
                     .padding(.vertical, 6)
                 }
+                .id(viewModel.listRevision)
                 .onChange(of: viewModel.selectedIndex) { index in
-                    guard index >= 0 else { return }
+                    guard viewModel.items.indices.contains(index) else { return }
                     withAnimation(.easeOut(duration: 0.12)) {
-                        proxy.scrollTo(index, anchor: .center)
+                        proxy.scrollTo(viewModel.items[index].id, anchor: .center)
                     }
                 }
             }
@@ -86,7 +103,7 @@ struct PickerView: View {
         HStack {
             Text("\(viewModel.items.count) item\(viewModel.items.count == 1 ? "" : "s")")
             Spacer()
-            Text("↩ paste · ⌘⌫ delete · ⌘P pin")
+            Text("↩ paste · ⌘1-0 copy")
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -114,18 +131,25 @@ private struct PickerRowModel: Identifiable {
 
 private struct PickerRowView: View {
     let item: ClipboardItem
+    let index: Int
     let isSelected: Bool
     let thumbnailLoader: ThumbnailLoader
+    let onActivate: () -> Void
+    let onCopyToClipboard: () -> Void
+    let onContextCopyToClipboard: () -> Void
+    let onDelete: () -> Void
+    let onContextDelete: () -> Void
 
     var body: some View {
-        HStack(spacing: 9) {
-            pinIndicator
-            rowPreview
-            Spacer(minLength: 8)
-            trailingInfo
+        HStack(alignment: .center, spacing: 6) {
+            shortcutBadge
+            contentColumn
+            rowActions
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.leading, 10)
+        .padding(.trailing, 8)
+        .padding(.vertical, 8)
+        .frame(minHeight: 58)
         .background {
             if isSelected {
                 RoundedRectangle(cornerRadius: 6)
@@ -134,6 +158,25 @@ private struct PickerRowView: View {
                     .padding(.vertical, 2)
             }
         }
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button("Send to Clipboard", action: onContextCopyToClipboard)
+            Button("Delete", role: .destructive, action: onContextDelete)
+        }
+    }
+
+    private var contentColumn: some View {
+        Group {
+            if item.type == .image {
+                imagePreview
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    rowPreview
+                    metadataLine
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder private var rowPreview: some View {
@@ -153,11 +196,20 @@ private struct PickerRowView: View {
         }
     }
 
-    private var pinIndicator: some View {
-        Image(systemName: item.isPinned ? "pin.fill" : "pin")
-            .font(.system(size: 11))
-            .foregroundStyle(item.isPinned ? Color.accentColor : Color.clear)
-            .frame(width: 14)
+    private var shortcutBadge: some View {
+        HStack(spacing: 1) {
+            Image(systemName: "command")
+                .font(.system(size: 10, weight: .medium))
+            Text(shortcutLabel ?? "")
+                .font(.caption2.monospacedDigit())
+        }
+        .foregroundStyle(shortcutLabel == nil ? Color.clear : Color.secondary)
+        .frame(width: 30, alignment: .leading)
+    }
+
+    private var shortcutLabel: String? {
+        guard index < 10 else { return nil }
+        return index == 9 ? "0" : String(index + 1)
     }
 
     private var textPreview: some View {
@@ -182,10 +234,10 @@ private struct PickerRowView: View {
     }
 
     private var imagePreview: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .center, spacing: 8) {
             ThumbnailView(item: item, loader: thumbnailLoader)
                 .frame(width: 38, height: 38)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(item.previewText.isEmpty ? "Image" : item.previewText)
                     .font(.callout)
                     .lineLimit(1)
@@ -193,7 +245,9 @@ private struct PickerRowView: View {
                     Text(dimensions)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
+                metadataLine
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -244,17 +298,33 @@ private struct PickerRowView: View {
     }
 
     private var trailingInfo: some View {
-        VStack(alignment: .trailing, spacing: 2) {
+        EmptyView()
+    }
+
+    private var metadataLine: some View {
+        HStack(spacing: 5) {
+            if item.isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Color.accentColor.opacity(0.8))
+            }
             Text(item.sourceAppName ?? "Unknown")
-                .font(.caption)
                 .lineLimit(1)
+            Text("·")
             Text(Self.relativeDateFormatter.localizedString(for: item.updatedAt, relativeTo: Date()))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
-        .foregroundStyle(.secondary)
-        .frame(width: 92, alignment: .trailing)
+        .font(.caption2)
+        .foregroundStyle(Color.secondary.opacity(0.72))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var rowActions: some View {
+        HStack(spacing: 4) {
+            RowActionButton(systemImage: "doc.on.clipboard", help: "Send to Clipboard", action: onCopyToClipboard)
+            RowActionButton(systemImage: "trash", help: "Delete", action: onDelete)
+        }
+        .frame(width: 68, alignment: .trailing)
     }
 
     private var metadata: [String: Any] {
@@ -326,4 +396,49 @@ private struct PickerRowView: View {
         formatter.unitsStyle = .short
         return formatter
     }()
+}
+
+private struct RowActionButton: NSViewRepresentable {
+    let systemImage: String
+    let help: String
+    let action: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(image: NSImage(systemSymbolName: systemImage, accessibilityDescription: help) ?? NSImage(), target: context.coordinator, action: #selector(Coordinator.performAction(_:)))
+        button.bezelStyle = .inline
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleProportionallyDown
+        button.setButtonType(.momentaryChange)
+        button.toolTip = help
+        button.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            button.widthAnchor.constraint(equalToConstant: 32),
+            button.heightAnchor.constraint(equalToConstant: 32)
+        ])
+        return button
+    }
+
+    func updateNSView(_ nsView: NSButton, context: Context) {
+        context.coordinator.action = action
+        nsView.image = NSImage(systemSymbolName: systemImage, accessibilityDescription: help)
+        nsView.imageScaling = .scaleProportionallyDown
+        nsView.toolTip = help
+    }
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func performAction(_ sender: NSButton) {
+            action()
+        }
+    }
 }

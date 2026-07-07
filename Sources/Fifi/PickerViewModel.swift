@@ -14,9 +14,11 @@ final class PickerViewModel: ObservableObject {
     @Published var selectedIndex = -1
     @Published var focusToken = 0
     @Published var canLoadMore = false
+    @Published var listRevision = 0
 
     let pageSize = 50
     var onActivate: ((ClipboardItem) -> Void)?
+    var onCopyToClipboard: ((ClipboardItem) -> Void)?
 
     private let historyService: HistoryService
     private var searchWorkItem: DispatchWorkItem?
@@ -56,10 +58,27 @@ final class PickerViewModel: ObservableObject {
 
     func deleteSelected() {
         guard items.indices.contains(selectedIndex) else { return }
-        let item = items[selectedIndex]
-        historyService.delete(item: item)
-        items.remove(at: selectedIndex)
+        delete(item: items[selectedIndex])
+    }
+
+    func delete(item: ClipboardItem) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        NSLog("Fifi[picker] deleting item id=%ld type=%@", item.id, item.type.rawValue)
+        guard historyService.delete(item: item) else {
+            reload()
+            return
+        }
+        items.remove(at: index)
         clampSelection()
+    }
+
+    func deleteItem(id: Int64) {
+        guard let item = items.first(where: { $0.id == id }) else {
+            NSLog("Fifi[picker] delete target id=%ld not in current items", id)
+            reload()
+            return
+        }
+        delete(item: item)
     }
 
     func togglePinSelected() {
@@ -78,6 +97,24 @@ final class PickerViewModel: ObservableObject {
 
     func activate(item: ClipboardItem) {
         onActivate?(item)
+    }
+
+    func copyToClipboard(item: ClipboardItem) {
+        onCopyToClipboard?(item)
+    }
+
+    func copyToClipboard(id: Int64) {
+        guard let item = items.first(where: { $0.id == id }) else {
+            NSLog("Fifi[picker] copy target id=%ld not in current items", id)
+            reload()
+            return
+        }
+        copyToClipboard(item: item)
+    }
+
+    func copyShortcutItem(at index: Int) {
+        guard (0..<10).contains(index), items.indices.contains(index) else { return }
+        copyToClipboard(item: items[index])
     }
 
     private func scheduleSearch() {
@@ -102,6 +139,13 @@ final class PickerViewModel: ObservableObject {
         selectedIndex = page.isEmpty ? -1 : 0
         canLoadMore = page.count == pageSize
         isLoading = false
+        listRevision += 1
+        NSLog(
+            "Fifi[picker] loaded first page count=%ld topID=%ld queryEmpty=%d",
+            page.count,
+            page.first?.id ?? -1,
+            query.isEmpty ? 1 : 0
+        )
         clampSelection()
     }
 

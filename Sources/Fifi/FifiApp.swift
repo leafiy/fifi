@@ -46,6 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         createStatusItem()
+        if let image = Self.fifiImage() {
+            NSApp.applicationIconImage = image
+        }
 
         // Callbacks must be wired before apply(settings:) registers the hotkey,
         // or a launch-time registration failure fires into nil.
@@ -104,6 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let settingsStore = SettingsStore()
         let historyService = HistoryService(
             historyStore: historyStore,
+            databasePath: databaseURL.path,
             blobStore: blobStore,
             settingsProvider: { settingsStore.settings }
         )
@@ -116,7 +120,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let pickerController = PickerController(
             historyService: historyService,
             blobStore: blobStore,
-            settingsStore: settingsStore
+            settingsStore: settingsStore,
+            captureCurrentPasteboard: { [weak monitor] in
+                monitor?.captureCurrentPasteboardIfNeeded()
+            }
         )
         let settingsWindowController = SettingsWindowController(
             settingsStore: settingsStore,
@@ -161,9 +168,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func createStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = item.button {
-            let image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Fifi")
-            image?.isTemplate = true
+            let image = Self.fifiImage() ?? NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Fifi")
+            image?.size = NSSize(width: 18, height: 18)
+            image?.isTemplate = false
             button.image = image
+            button.imagePosition = .imageOnly
             button.target = self
             button.action = #selector(statusItemClicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -212,6 +221,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.openPickerItem = openPickerItem
         self.pauseRecordingItem = pauseRecordingItem
         updateStatusMenu()
+    }
+
+    private static func fifiImage() -> NSImage? {
+        if let url = Bundle.main.url(forResource: "fifi", withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            return image
+        }
+        return NSImage(named: "Fifi")
     }
 
     private func updateStatusMenu() {

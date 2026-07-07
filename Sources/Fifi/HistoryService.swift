@@ -5,16 +5,19 @@ import FifiCore
 @MainActor
 final class HistoryService {
     private let historyStore: HistoryStore
+    private let databasePath: String
     private let blobStore: BlobStore
     private let settingsProvider: () -> AppSettings
     private let cleanupQueue = DispatchQueue(label: "com.leafiy.fifi.cleanup", qos: .utility)
 
     init(
         historyStore: HistoryStore,
+        databasePath: String,
         blobStore: BlobStore,
         settingsProvider: @escaping () -> AppSettings
     ) {
         self.historyStore = historyStore
+        self.databasePath = databasePath
         self.blobStore = blobStore
         self.settingsProvider = settingsProvider
     }
@@ -23,7 +26,7 @@ final class HistoryService {
 
     func recent(limit: Int, offset: Int) -> [ClipboardItem] {
         do {
-            return try historyStore.recentItems(limit: limit, offset: offset)
+            return try freshHistoryStore().recentItems(limit: limit, offset: offset)
         } catch {
             NSLog("Failed to load recent history: \(String(describing: error))")
             return []
@@ -32,7 +35,7 @@ final class HistoryService {
 
     func search(_ query: String, limit: Int, offset: Int) -> [ClipboardItem] {
         do {
-            return try historyStore.search(query, limit: limit, offset: offset)
+            return try freshHistoryStore().search(query, limit: limit, offset: offset)
         } catch {
             NSLog("Failed to search history: \(String(describing: error))")
             return []
@@ -50,19 +53,24 @@ final class HistoryService {
 
     // MARK: - Mutations
 
-    func delete(item: ClipboardItem) {
+    @discardableResult
+    func delete(item: ClipboardItem) -> Bool {
         do {
-            if let deleted = try historyStore.delete(id: item.id) {
-                deleteBlobs(for: deleted)
+            guard let deleted = try freshHistoryStore().delete(id: item.id) else {
+                NSLog("History item \(item.id) was not found during delete")
+                return false
             }
+            deleteBlobs(for: deleted)
+            return true
         } catch {
             NSLog("Failed to delete history item \(item.id): \(String(describing: error))")
+            return false
         }
     }
 
     func togglePin(item: ClipboardItem) {
         do {
-            try historyStore.setPinned(id: item.id, !item.isPinned)
+            try freshHistoryStore().setPinned(id: item.id, !item.isPinned)
         } catch {
             NSLog("Failed to toggle pin for item \(item.id): \(String(describing: error))")
         }
@@ -88,7 +96,7 @@ final class HistoryService {
 
     func markUsed(id: Int64) {
         do {
-            try historyStore.markUsed(id: id)
+            try freshHistoryStore().markUsed(id: id)
         } catch {
             NSLog("Failed to mark item \(id) used: \(String(describing: error))")
         }
@@ -125,5 +133,10 @@ final class HistoryService {
         if let thumbnailPath = item.thumbnailPath {
             blobStore.delete(relativePath: thumbnailPath)
         }
+    }
+
+    private func freshHistoryStore() throws -> HistoryStore {
+        let database = try Database(path: databasePath)
+        return try HistoryStore(database: database)
     }
 }

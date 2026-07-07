@@ -6,10 +6,34 @@ import FifiCore
 struct SettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
 
+    enum Pane: String, CaseIterable, Hashable {
+        case general
+        case storage
+        case ignore
+
+        var title: String {
+            switch self {
+            case .general: return "General"
+            case .storage: return "Storage"
+            case .ignore: return "Ignore"
+            }
+        }
+
+        var windowSize: NSSize {
+            switch self {
+            case .general: return NSSize(width: 520, height: 244)
+            case .storage: return NSSize(width: 520, height: 286)
+            case .ignore: return NSSize(width: 660, height: 520)
+            }
+        }
+    }
+
     private let historyService: HistoryService
     private let ignoreRulesStore: IgnoreRulesStore
     private let monitorReload: () -> Void
+    private let onPaneChanged: (Pane) -> Void
 
+    @State private var selectedPane: Pane = .general
     @State private var hotkeyDraft = ""
     @State private var hotkeyError: String?
     @State private var usageCount = 0
@@ -29,55 +53,69 @@ struct SettingsView: View {
     init(
         historyService: HistoryService,
         ignoreRulesStore: IgnoreRulesStore,
-        monitorReload: @escaping () -> Void
+        monitorReload: @escaping () -> Void,
+        onPaneChanged: @escaping (Pane) -> Void = { _ in }
     ) {
         self.historyService = historyService
         self.ignoreRulesStore = ignoreRulesStore
         self.monitorReload = monitorReload
+        self.onPaneChanged = onPaneChanged
     }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedPane) {
             generalTab
-                .tabItem { Text("General") }
+                .tabItem { Text(Pane.general.title) }
+                .tag(Pane.general)
             storageTab
-                .tabItem { Text("Storage") }
+                .tabItem { Text(Pane.storage.title) }
+                .tag(Pane.storage)
             ignoreTab
-                .tabItem { Text("Ignore") }
+                .tabItem { Text(Pane.ignore.title) }
+                .tag(Pane.ignore)
         }
         .onAppear {
             hotkeyDraft = settingsStore.settings.hotkeyShortcut
             refreshUsage()
             reloadIgnoreData()
             refreshRunningApps()
+            onPaneChanged(selectedPane)
+        }
+        .onChange(of: selectedPane) { pane in
+            onPaneChanged(pane)
         }
     }
 
     // MARK: - General
 
     private var generalTab: some View {
-        Form {
-            Section {
-                TextField("Global shortcut", text: $hotkeyDraft, prompt: Text("cmd+shift+v"))
-                    .onSubmit(commitHotkey)
-                Text(hotkeyError ?? "Press Return to save. Combine cmd, shift, option, ctrl with a key, e.g. cmd+shift+v.")
-                    .font(.caption)
+        SettingsPane {
+            SettingsSection("Shortcut") {
+                SettingsRow("Global shortcut") {
+                    TextField("cmd+shift+v", text: $hotkeyDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 180)
+                        .onSubmit(commitHotkey)
+                }
+                SettingsFootnote(hotkeyError ?? "Press Return to save. Use cmd, shift, option, or ctrl with a key.")
                     .foregroundStyle(hotkeyError == nil ? Color.secondary : Color.red)
-            } header: {
-                Text("Shortcut")
             }
 
-            Section {
-                Picker("On selection", selection: settingBinding(\.selectionBehavior)) {
-                    Text("Paste immediately").tag(SelectionBehavior.paste)
-                    Text("Copy only").tag(SelectionBehavior.copy)
+            SettingsSection("Behavior") {
+                SettingsRow("On selection") {
+                    Picker("", selection: settingBinding(\.selectionBehavior)) {
+                        Text("Paste immediately").tag(SelectionBehavior.paste)
+                        Text("Copy only").tag(SelectionBehavior.copy)
+                    }
+                    .labelsHidden()
+                    .frame(width: 180)
                 }
-                Toggle("Launch at login", isOn: settingBinding(\.launchAtLogin))
-            } header: {
-                Text("Behavior")
+                SettingsRow("Launch at login") {
+                    Toggle("", isOn: settingBinding(\.launchAtLogin))
+                        .labelsHidden()
+                }
             }
         }
-        .formStyle(.grouped)
     }
 
     private func commitHotkey() {
@@ -98,21 +136,16 @@ struct SettingsView: View {
     // MARK: - Storage
 
     private var storageTab: some View {
-        Form {
-            Section {
+        SettingsPane {
+            SettingsSection("Limits") {
                 limitRow("Max history count", keyPath: \.maxHistoryCount, range: 0...100_000, step: 100)
                 limitRow("Retention days", keyPath: \.retentionDays, range: 0...3_650, step: 1)
                 limitRow("Max storage (MB)", keyPath: \.maxStorageMB, range: 0...100_000, step: 64)
-            } header: {
-                Text("Limits")
-            } footer: {
-                Text("0 means unlimited.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                SettingsFootnote("0 means unlimited.")
             }
 
-            Section {
-                LabeledContent("Current usage") {
+            SettingsSection("Usage") {
+                SettingsRow("Current usage") {
                     Text("\(usageCount) items · \(formatMegabytes(usageBytes))")
                         .foregroundStyle(.secondary)
                 }
@@ -123,11 +156,8 @@ struct SettingsView: View {
                         showingClearConfirmation = true
                     }
                 }
-            } header: {
-                Text("Usage")
             }
         }
-        .formStyle(.grouped)
         .alert("Clear clipboard history?", isPresented: $showingClearConfirmation) {
             Button("Clear", role: .destructive) {
                 historyService.clearAll(keepPinned: true)
@@ -145,9 +175,7 @@ struct SettingsView: View {
         range: ClosedRange<Int>,
         step: Int
     ) -> some View {
-        HStack {
-            Text(title)
-            Spacer()
+        SettingsRow(title) {
             TextField("0", value: settingBinding(keyPath), formatter: Self.integerFormatter)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 72)
@@ -166,8 +194,8 @@ struct SettingsView: View {
     // MARK: - Ignore
 
     private var ignoreTab: some View {
-        Form {
-            Section {
+        SettingsPane {
+            SettingsSection("Ignored Apps") {
                 if ignoredApps.isEmpty {
                     Text("No ignored apps")
                         .foregroundStyle(.secondary)
@@ -211,11 +239,9 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(Color.red)
                 }
-            } header: {
-                Text("Ignored Apps")
             }
 
-            Section {
+            SettingsSection("Ignored Text (Regex)") {
                 if regexRules.isEmpty {
                     Text("No rules")
                         .foregroundStyle(.secondary)
@@ -260,11 +286,8 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(Color.red)
                 }
-            } header: {
-                Text("Ignored Text (Regex)")
             }
         }
-        .formStyle(.grouped)
     }
 
     private func reloadIgnoreData() {
@@ -383,6 +406,83 @@ struct SettingsView: View {
         formatter.maximum = 1_000_000
         return formatter
     }()
+}
+
+private struct SettingsPane<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                content
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 18)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct SettingsSection<Content: View>: View {
+    private let title: String
+    @ViewBuilder private let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+            VStack(alignment: .leading, spacing: 8) {
+                content
+            }
+        }
+    }
+}
+
+private struct SettingsRow<Content: View>: View {
+    private let title: String
+    @ViewBuilder private let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .foregroundStyle(.secondary)
+                .frame(width: 132, alignment: .trailing)
+            HStack(spacing: 8) {
+                content
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.callout)
+    }
+}
+
+private struct SettingsFootnote: View {
+    private let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.leading, 144)
+    }
 }
 
 private struct RunningAppChoice: Identifiable {

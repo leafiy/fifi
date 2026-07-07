@@ -38,6 +38,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Info.plist "$APP/Contents/Info.plist"
 cp "$BIN_DIR/fifi" "$APP/Contents/MacOS/Fifi"
+cp fifi.png "$APP/Contents/Resources/fifi.png"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 make_icns fifi.png "$APP/Contents/Resources/Fifi.icns"
 

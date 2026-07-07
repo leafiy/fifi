@@ -12,17 +12,26 @@ final class PickerController {
     private let historyService: HistoryService
     private let blobStore: BlobStore
     private let settingsStore: SettingsStore
+    private let captureCurrentPasteboard: () -> Void
     private let viewModel: PickerViewModel
     private let panel: PickerPanel
 
     private var localKeyMonitor: Any?
+    private var localMouseMonitor: Any?
+    private var globalMouseMonitor: Any?
     private var historyObserver: NSObjectProtocol?
     private var lastHideTime: TimeInterval = 0
 
-    init(historyService: HistoryService, blobStore: BlobStore, settingsStore: SettingsStore) {
+    init(
+        historyService: HistoryService,
+        blobStore: BlobStore,
+        settingsStore: SettingsStore,
+        captureCurrentPasteboard: @escaping () -> Void
+    ) {
         self.historyService = historyService
         self.blobStore = blobStore
         self.settingsStore = settingsStore
+        self.captureCurrentPasteboard = captureCurrentPasteboard
         self.viewModel = PickerViewModel(historyService: historyService)
 
         let panel = PickerPanel(
@@ -34,7 +43,7 @@ final class PickerController {
         panel.animationBehavior = .none
         panel.isFloatingPanel = true
         panel.level = .statusBar
-        panel.collectionBehavior = [.auxiliary, .stationary, .moveToActiveSpace, .fullScreenAuxiliary]
+        panel.collectionBehavior = [.auxiliary, .stationary, .canJoinAllSpaces, .fullScreenAuxiliary]
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.titlebarSeparatorStyle = .none
@@ -57,9 +66,10 @@ final class PickerController {
         contentView.layer?.masksToBounds = true
         panel.contentView = contentView
 
-        // Click outside → panel resigns key → hide (Maccy behavior).
-        panel.onResignKey = { [weak self] in
-            self?.hide()
+        // Do not close on resignKey: native context menus temporarily move key
+        // focus away from the panel before dispatching their action.
+        panel.onResignKey = {
+            NSLog("Fifi[picker] ignored resignKey")
         }
 
         viewModel.onActivate = { [weak self] item in
@@ -67,14 +77,19 @@ final class PickerController {
                 self?.activate(item: item)
             }
         }
+        viewModel.onCopyToClipboard = { [weak self] item in
+            Task { @MainActor in
+                self?.copyToClipboard(item: item, hideAfterCopy: false)
+            }
+        }
 
-        // Refresh the visible list when the monitor captures a new item, but
+        // Refresh cached recents whenever the monitor captures a new item, but
         // never while the user is mid-search.
         historyObserver = NotificationCenter.default.addObserver(
             forName: .fifiHistoryDidChange, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.panel.isVisible, self.viewModel.query.isEmpty else { return }
+                guard let self, self.viewModel.query.isEmpty else { return }
                 self.viewModel.reload()
             }
         }
@@ -90,9 +105,11 @@ final class PickerController {
         // the panel would instantly reopen instead of closing.
         guard ProcessInfo.processInfo.systemUptime - lastHideTime > 0.2 else { return }
         NSLog("Fifi[picker] show()")
+        captureCurrentPasteboard()
         positionPanel()
         viewModel.reload()
         installKeyMonitor()
+        installOutsideClickMonitor()
         panel.orderFrontRegardless()
         panel.makeKey()
         viewModel.focusToken += 1
@@ -110,13 +127,13 @@ final class PickerController {
         guard panel.isVisible else { return }
         lastHideTime = ProcessInfo.processInfo.systemUptime
         removeKeyMonitor()
+        removeOutsideClickMonitor()
         panel.orderOut(nil)
     }
 
     func activate(item: ClipboardItem) {
         NSLog("Fifi[picker] activating item id=%ld type=%@", item.id, item.type.rawValue)
-        PasteboardWriter.copy(item, blobStore: blobStore)
-        historyService.markUsed(id: item.id)
+        copyToClipboard(item: item, hideAfterCopy: false)
         hide()
 
         guard settingsStore.settings.selectionBehavior == .paste else { return }
@@ -129,22 +146,41 @@ final class PickerController {
         }
     }
 
+    private func copyToClipboard(item: ClipboardItem, hideAfterCopy: Bool) {
+        NSLog("Fifi[picker] copying item id=%ld type=%@ hide=%d", item.id, item.type.rawValue, hideAfterCopy ? 1 : 0)
+        PasteboardWriter.copy(item, blobStore: blobStore)
+        historyService.markUsed(id: item.id)
+        if hideAfterCopy {
+            hide()
+        }
+    }
+
     private func positionPanel() {
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
         let visibleFrame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 420, height: 480)
         let size = panel.frame.size
 
-        let minX = visibleFrame.minX
-        let maxX = visibleFrame.maxX - size.width
-        let minY = visibleFrame.minY + size.height
-        let maxY = visibleFrame.maxY
+        let margin: CGFloat = 12
+        let minX = visibleFrame.minX + margin
+        let maxX = max(minX, visibleFrame.maxX - size.width - margin)
+        let minY = visibleFrame.minY + size.height + margin
+        let maxY = max(minY, visibleFrame.maxY - margin)
 
         let topLeft = NSPoint(
-            x: min(max(mouse.x, minX), maxX),
-            y: min(max(mouse.y, minY), maxY)
+            x: min(max(mouse.x - size.width / 2, minX), maxX),
+            y: min(max(mouse.y + size.height / 2, minY), maxY)
         )
         panel.setFrameTopLeftPoint(topLeft)
+        NSLog(
+            "Fifi[picker] positioned x=%.1f y=%.1f screen=(%.1f %.1f %.1f %.1f)",
+            topLeft.x,
+            topLeft.y,
+            visibleFrame.minX,
+            visibleFrame.minY,
+            visibleFrame.width,
+            visibleFrame.height
+        )
     }
 
     private func installKeyMonitor() {
@@ -168,11 +204,60 @@ final class PickerController {
         }
     }
 
+    private func installOutsideClickMonitor() {
+        removeOutsideClickMonitor()
+
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            guard let self else { return event }
+            MainActor.assumeIsolated {
+                self.hideIfOutsidePanel(at: Self.screenPoint(for: event))
+            }
+            return event
+        }
+
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            let point = Self.screenPoint(for: event)
+            Task { @MainActor in
+                self?.hideIfOutsidePanel(at: point)
+            }
+        }
+    }
+
+    private func removeOutsideClickMonitor() {
+        if let localMouseMonitor {
+            NSEvent.removeMonitor(localMouseMonitor)
+            self.localMouseMonitor = nil
+        }
+        if let globalMouseMonitor {
+            NSEvent.removeMonitor(globalMouseMonitor)
+            self.globalMouseMonitor = nil
+        }
+    }
+
+    private func hideIfOutsidePanel(at point: NSPoint) {
+        guard panel.isVisible, !panel.frame.contains(point) else { return }
+        NSLog("Fifi[picker] outside click hide x=%.1f y=%.1f", point.x, point.y)
+        hide()
+    }
+
+    private static func screenPoint(for event: NSEvent) -> NSPoint {
+        if let window = event.window {
+            return window.convertPoint(toScreen: event.locationInWindow)
+        }
+        return NSEvent.mouseLocation
+    }
+
     private func handleKey(_ event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let keyCode = Int(event.keyCode)
 
-        if modifiers.contains(.command), keyCode == kVK_Delete {
+        if modifiers == .command, let index = Self.shortcutIndex(for: keyCode) {
+            viewModel.copyShortcutItem(at: index)
+            hide()
+            return true
+        }
+
+        if (modifiers.isEmpty || modifiers == .function || modifiers.contains(.command)), keyCode == kVK_Delete {
             viewModel.deleteSelected()
             return true
         }
@@ -199,9 +284,27 @@ final class PickerController {
         }
     }
 
+    private static func shortcutIndex(for keyCode: Int) -> Int? {
+        switch keyCode {
+        case kVK_ANSI_1: return 0
+        case kVK_ANSI_2: return 1
+        case kVK_ANSI_3: return 2
+        case kVK_ANSI_4: return 3
+        case kVK_ANSI_5: return 4
+        case kVK_ANSI_6: return 5
+        case kVK_ANSI_7: return 6
+        case kVK_ANSI_8: return 7
+        case kVK_ANSI_9: return 8
+        case kVK_ANSI_0: return 9
+        default: return nil
+        }
+    }
+
     deinit {
         // deinit is nonisolated: touch stored properties directly.
         if let localKeyMonitor { NSEvent.removeMonitor(localKeyMonitor) }
+        if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
+        if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
         if let historyObserver { NotificationCenter.default.removeObserver(historyObserver) }
     }
 }
