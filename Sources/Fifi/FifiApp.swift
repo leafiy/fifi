@@ -11,13 +11,9 @@ struct FifiApp: App {
     @StateObject private var appState = FifiAppState.shared
 
     var body: some Scene {
-        MenuBarExtra {
-            FifiMenuContent(appState: appState)
-        } label: {
-            FifiMenuIcon()
-        }
-        .menuBarExtraStyle(.menu)
-
+        // The menu bar icon is an NSStatusItem (see AppDelegate): left click
+        // must open the picker directly and right click the menu, which
+        // MenuBarExtra cannot distinguish.
         Settings {
             FifiSettingsView(appState: appState)
         }
@@ -33,7 +29,6 @@ final class FifiAppState: ObservableObject {
     @Published var ignoreRulesStore: IgnoreRulesStore?
     @Published var hotkeyRegistrationMessage: String?
 
-    private var openPickerHandler: () -> Void = {}
     private var monitorReloadHandler: () -> Void = {}
 
     private init() {}
@@ -42,18 +37,12 @@ final class FifiAppState: ObservableObject {
         settingsStore: SettingsStore,
         historyService: HistoryService,
         ignoreRulesStore: IgnoreRulesStore,
-        monitorReload: @escaping () -> Void,
-        openPicker: @escaping () -> Void
+        monitorReload: @escaping () -> Void
     ) {
         self.settingsStore = settingsStore
         self.historyService = historyService
         self.ignoreRulesStore = ignoreRulesStore
         self.monitorReloadHandler = monitorReload
-        self.openPickerHandler = openPicker
-    }
-
-    func openPicker() {
-        openPickerHandler()
     }
 
     func reloadMonitor() {
@@ -109,6 +98,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastRegisteredShortcut: String?
     private var lastLaunchAtLogin: Bool?
     private var lastPauseState: Bool?
+    private var statusItem: NSStatusItem?
+    private var statusMenu: NSMenu?
+    private var openPickerItem: NSMenuItem?
+    private var pauseRecordingItem: NSMenuItem?
     private var warnedHotkeyConflict = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -123,6 +116,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             presentStartupFailure(error)
             return
         }
+
+        createStatusItem()
 
         // Callbacks must be wired before apply(settings:) registers the hotkey,
         // or a launch-time registration failure fires into nil.
@@ -199,8 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsStore: settingsStore,
             historyService: historyService,
             ignoreRulesStore: ignoreRulesStore,
-            monitorReload: { [weak monitor] in monitor?.reloadIgnoreRules() },
-            openPicker: { [weak pickerController] in pickerController?.toggle() }
+            monitorReload: { [weak monitor] in monitor?.reloadIgnoreRules() }
         )
     }
 
@@ -241,9 +235,131 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Picker shortcut unavailable"
-        alert.informativeText = "Fifi couldn’t register “\(shortcut)” (error \(status)) — another app probably owns it. You can still open the picker from the Fifi menu bar menu, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically."
+        alert.informativeText = "Fifi couldn’t register “\(shortcut)” (error \(status)) — another app probably owns it. You can still open the picker by clicking the Fifi menu bar icon, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically."
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    // MARK: - Status item
+
+    /// Left click opens the picker directly; right click (or ⌃-click) shows
+    /// the menu. MenuBarExtra cannot distinguish the two, so this stays an
+    /// NSStatusItem with a transiently attached menu.
+    private func createStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        if let button = item.button {
+            let image = Self.fifiImage()?.leafiyMenuBarSized()
+                ?? NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Fifi")
+            image?.isTemplate = false
+            button.image = image
+            button.imagePosition = .imageOnly
+            button.target = self
+            button.action = #selector(statusItemClicked)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        }
+
+        let menu = NSMenu()
+        let openPickerItem = NSMenuItem(title: "Open Picker", action: #selector(openPickerFromMenu), keyEquivalent: "")
+        openPickerItem.target = self
+        menu.addItem(openPickerItem)
+
+        menu.addItem(.separator())
+
+        let pauseRecordingItem = NSMenuItem(title: "Pause Recording", action: #selector(toggleRecordingPause), keyEquivalent: "")
+        pauseRecordingItem.target = self
+        menu.addItem(pauseRecordingItem)
+
+        let clearHistoryItem = NSMenuItem(title: "Clear History…", action: #selector(clearHistoryFromMenu), keyEquivalent: "")
+        clearHistoryItem.target = self
+        menu.addItem(clearHistoryItem)
+
+        let clearByTypeItem = NSMenuItem(title: "Clear by Type", action: nil, keyEquivalent: "")
+        let clearByTypeMenu = NSMenu()
+        for type in ClipItemType.allCases {
+            let typeItem = NSMenuItem(title: type.fifiLabel, action: #selector(clearHistoryByType(_:)), keyEquivalent: "")
+            typeItem.target = self
+            typeItem.representedObject = type.rawValue
+            clearByTypeMenu.addItem(typeItem)
+        }
+        clearByTypeItem.submenu = clearByTypeMenu
+        menu.addItem(clearByTypeItem)
+
+        menu.addItem(.separator())
+
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettingsFromMenu), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
+        let quitItem = NSMenuItem(title: "Quit Fifi", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(quitItem)
+
+        // No permanent item.menu: a left click must reach statusItemClicked to
+        // open the picker; the menu is attached transiently for right clicks.
+        self.statusMenu = menu
+        self.statusItem = item
+        self.openPickerItem = openPickerItem
+        self.pauseRecordingItem = pauseRecordingItem
+        updateStatusMenu()
+    }
+
+    private func updateStatusMenu() {
+        guard let settings = settingsStore?.settings else { return }
+        let display = KeyboardShortcutSpec(parsing: settings.hotkeyShortcut)?.display ?? settings.hotkeyShortcut
+        openPickerItem?.title = "Open Picker    \(display)"
+        pauseRecordingItem?.title = settings.isRecordingPaused ? "Resume Recording" : "Pause Recording"
+        pauseRecordingItem?.state = settings.isRecordingPaused ? .on : .off
+    }
+
+    @objc private func statusItemClicked() {
+        let event = NSApp.currentEvent
+        let isMenuClick = event.map { $0.type == .rightMouseUp || $0.modifierFlags.contains(.control) } ?? false
+        if isMenuClick {
+            showStatusMenu()
+        } else {
+            pickerController?.toggle()
+        }
+    }
+
+    private func showStatusMenu() {
+        guard let item = statusItem, let menu = statusMenu else { return }
+        item.menu = menu
+        item.button?.performClick(nil)
+        item.menu = nil
+    }
+
+    @objc private func openPickerFromMenu() {
+        pickerController?.toggle()
+    }
+
+    @objc private func toggleRecordingPause() {
+        settingsStore?.update { settings in
+            settings.isRecordingPaused.toggle()
+        }
+    }
+
+    @objc private func clearHistoryFromMenu() {
+        appState.clearHistoryKeepingPinned()
+    }
+
+    @objc private func clearHistoryByType(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let type = ClipItemType(rawValue: raw) else { return }
+        appState.clearHistory(type: type)
+    }
+
+    /// Opens the SwiftUI Settings scene from AppKit by performing the
+    /// app-menu "Settings…" item SwiftUI maintains (equivalent to ⌘,);
+    /// falls back to the legacy responder-chain selector.
+    @objc private func openSettingsFromMenu() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let appMenu = NSApp.mainMenu?.items.first?.submenu,
+           let index = appMenu.items.firstIndex(where: {
+               $0.keyEquivalent == "," && $0.keyEquivalentModifierMask == .command
+           }) {
+            appMenu.performActionForItem(at: index)
+            return
+        }
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 
     // MARK: - Settings
@@ -262,6 +378,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         registerHotKeyIfNeeded(settings.hotkeyShortcut)
         applyLaunchAtLoginIfNeeded(settings)
         applyRecordingStateIfNeeded(settings)
+        updateStatusMenu()
     }
 
     private func registerHotKeyIfNeeded(_ shortcut: String) {
@@ -304,78 +421,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.historyService?.runCleanup()
             }
         }
-    }
-}
-
-private struct FifiMenuIcon: View {
-    /// Sized once: the status bar draws the NSImage's own point size;
-    /// SwiftUI frames on MenuBarExtra labels don't reliably constrain it.
-    private static let icon = AppDelegate.fifiImage()?.leafiyMenuBarSized()
-
-    var body: some View {
-        Group {
-            if let icon = Self.icon {
-                Image(nsImage: icon)
-            } else {
-                Image(systemName: "doc.on.clipboard")
-            }
-        }
-        .accessibilityLabel("Fifi")
-    }
-}
-
-private struct FifiMenuContent: View {
-    @ObservedObject var appState: FifiAppState
-
-    var body: some View {
-        if let settingsStore = appState.settingsStore {
-            FifiReadyMenuContent(appState: appState, settingsStore: settingsStore)
-        } else {
-            SettingsLink {
-                Text("Settings…")
-            }
-            Button("Quit Fifi") {
-                NSApp.terminate(nil)
-            }
-        }
-    }
-}
-
-private struct FifiReadyMenuContent: View {
-    @ObservedObject var appState: FifiAppState
-    @ObservedObject var settingsStore: SettingsStore
-
-    var body: some View {
-        Button(openPickerTitle) {
-            appState.openPicker()
-        }
-        Button(settingsStore.settings.isRecordingPaused ? "Resume Recording" : "Pause Recording") {
-            settingsStore.update { settings in
-                settings.isRecordingPaused.toggle()
-            }
-        }
-        Button("Clear History…") {
-            appState.clearHistoryKeepingPinned()
-        }
-        Menu("Clear by Type") {
-            ForEach(ClipItemType.allCases, id: \.rawValue) { type in
-                Button(type.fifiLabel) {
-                    appState.clearHistory(type: type)
-                }
-            }
-        }
-        Divider()
-        SettingsLink {
-            Text("Settings…")
-        }
-        Button("Quit Fifi") {
-            NSApp.terminate(nil)
-        }
-    }
-
-    private var openPickerTitle: String {
-        let display = KeyboardShortcutSpec(parsing: settingsStore.settings.hotkeyShortcut)?.display ?? settingsStore.settings.hotkeyShortcut
-        return "Open Picker    \(display)"
     }
 }
 
