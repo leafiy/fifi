@@ -216,7 +216,7 @@ private struct PickerRowView: View {
 
     private var textPreview: some View {
         Text(item.previewText.isEmpty ? "Empty text" : item.previewText)
-            .font(.callout)
+            .font(LeafiySymbolText.font(.callout))
             .lineLimit(2)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -275,7 +275,7 @@ private struct PickerRowView: View {
                 .frame(width: LeafiyDesign.Size.rowIcon, height: LeafiyDesign.Size.rowIcon)
             VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
                 Text(fileName)
-                    .font(.callout)
+                    .font(LeafiySymbolText.font(.callout))
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Text(filePath)
@@ -293,7 +293,7 @@ private struct PickerRowView: View {
             Image(systemName: "questionmark.square")
                 .foregroundStyle(.secondary)
             Text(unknownLabel)
-                .font(.callout)
+                .font(LeafiySymbolText.font(.callout))
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
