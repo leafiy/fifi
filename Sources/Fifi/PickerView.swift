@@ -216,7 +216,7 @@ private struct PickerRowView: View {
 
     private var textPreview: some View {
         Text(item.previewText.isEmpty ? "Empty text" : item.previewText)
-            .font(LeafiySymbolText.font(.callout))
+            .font(PickerSymbolFont.callout)
             .lineLimit(2)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -275,7 +275,7 @@ private struct PickerRowView: View {
                 .frame(width: LeafiyDesign.Size.rowIcon, height: LeafiyDesign.Size.rowIcon)
             VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
                 Text(fileName)
-                    .font(LeafiySymbolText.font(.callout))
+                    .font(PickerSymbolFont.callout)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Text(filePath)
@@ -293,7 +293,7 @@ private struct PickerRowView: View {
             Image(systemName: "questionmark.square")
                 .foregroundStyle(.secondary)
             Text(unknownLabel)
-                .font(LeafiySymbolText.font(.callout))
+                .font(PickerSymbolFont.callout)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -454,4 +454,28 @@ private struct RowActionButton: NSViewRepresentable {
             action()
         }
     }
+}
+
+/// Callout font whose fallback cascade includes an installed Nerd Font, so
+/// private-use-area glyphs in clipboard text (terminal prompts, powerline
+/// segments) render instead of the LastResort boxed question marks — PUA
+/// codepoints belong to no script, so the system cascade never reaches
+/// user-installed fonts for them on its own.
+///
+/// Kept local to fifi so the picker builds against any leafiy-ui revision.
+@MainActor
+private enum PickerSymbolFont {
+    static let callout: Font = {
+        let base = NSFont.preferredFont(forTextStyle: .callout, options: [:])
+        let families = NSFontManager.shared.availableFontFamilies
+        let preferred = ["Symbols Nerd Font Mono", "Symbols Nerd Font"]
+        let family = preferred.first(where: families.contains)
+            ?? families.first { $0.contains("Nerd Font") }
+        guard let family else {
+            return Font(base as CTFont)
+        }
+        let fallback = NSFontDescriptor(fontAttributes: [.family: family])
+        let descriptor = base.fontDescriptor.addingAttributes([.cascadeList: [fallback]])
+        return Font((NSFont(descriptor: descriptor, size: base.pointSize) ?? base) as CTFont)
+    }()
 }
