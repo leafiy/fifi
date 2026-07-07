@@ -30,6 +30,9 @@ final class SettingsCodableTests: XCTestCase {
         XCTAssertEqual(decoded.maxStorageMB, 128)
         XCTAssertTrue(decoded.launchAtLogin)
         XCTAssertTrue(decoded.isRecordingPaused)
+        XCTAssertFalse(decoded.showPreviewPanel)
+        XCTAssertFalse(decoded.showPickerFilters)
+        XCTAssertTrue(decoded.showSourceApp)
         XCTAssertEqual(try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(decoded)), decoded)
     }
 
@@ -47,6 +50,8 @@ final class SettingsCodableTests: XCTestCase {
             pickerWidth: 640,
             pickerHeight: 720,
             showPreviewPanel: true,
+            showPickerFilters: true,
+            showSourceApp: false,
             numberShortcuts: false,
             sortOrder: .mostUsed,
             fuzzyRanking: true,

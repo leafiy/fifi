@@ -144,13 +144,15 @@ final class HistoryStoreTests: FifiCoreTestCase {
         let text = try store.save(makeItem(hash: "text", type: .text, preview: "Text", byteSize: 3))
         let urlA = try store.save(makeItem(hash: "url-a", type: .url, preview: "https://a.example", byteSize: 5))
         let urlB = try store.save(makeItem(hash: "url-b", type: .url, preview: "https://b.example", byteSize: 7))
+        let pinnedURL = try store.save(makeItem(hash: "url-pinned", type: .url, preview: "https://pinned.example", byteSize: 11))
+        try store.setPinned(id: pinnedURL.id, true)
 
         let removed = try store.clear(type: .url)
 
         XCTAssertEqual(Set(removed.map(\.id)), Set([urlA.id, urlB.id]))
-        XCTAssertEqual(try store.itemCount(), 1)
-        XCTAssertEqual(try store.totalBytes(), 3)
-        XCTAssertEqual(try store.recentItems(limit: 10, offset: 0).map(\.id), [text.id])
-        XCTAssertTrue(try store.search("https", limit: 10, offset: 0).isEmpty)
+        XCTAssertEqual(try store.itemCount(), 2)
+        XCTAssertEqual(try store.totalBytes(), 14)
+        XCTAssertEqual(try store.recentItems(limit: 10, offset: 0).map(\.id), [pinnedURL.id, text.id])
+        XCTAssertEqual(try store.search("https", limit: 10, offset: 0).map(\.id), [pinnedURL.id])
     }
 }

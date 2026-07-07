@@ -233,6 +233,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsItem: NSMenuItem?
     private var quitItem: NSMenuItem?
     private var pauseRecordingItem: NSMenuItem?
+    private var showPickerPreviewItem: NSMenuItem?
+    private var showPickerFiltersItem: NSMenuItem?
     private var warnedHotkeyConflict = false
     private var lastAppearance: AppearanceMode?
     private var lastEncryptBlobs: Bool?
@@ -470,6 +472,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
+        let showPickerPreviewItem = NSMenuItem(title: L("Show picker preview"), action: #selector(togglePickerPreview), keyEquivalent: "")
+        showPickerPreviewItem.target = self
+        menu.addItem(showPickerPreviewItem)
+
+        let showPickerFiltersItem = NSMenuItem(title: L("Show filters in picker"), action: #selector(togglePickerFilters), keyEquivalent: "")
+        showPickerFiltersItem.target = self
+        menu.addItem(showPickerFiltersItem)
+
+        menu.addItem(.separator())
+
         let pauseRecordingItem = NSMenuItem(title: L("Pause Recording"), action: #selector(toggleRecordingPause), keyEquivalent: "")
         pauseRecordingItem.target = self
         menu.addItem(pauseRecordingItem)
@@ -509,6 +521,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.settingsItem = settingsItem
         self.quitItem = quitItem
         self.pauseRecordingItem = pauseRecordingItem
+        self.showPickerPreviewItem = showPickerPreviewItem
+        self.showPickerFiltersItem = showPickerFiltersItem
         updateStatusMenu()
     }
 
@@ -516,6 +530,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let settings = settingsStore?.settings else { return }
         let display = KeyboardShortcutSpec(parsing: settings.hotkeyShortcut)?.display ?? settings.hotkeyShortcut
         openPickerItem?.title = String(format: L("Open Picker    %@"), display)
+        showPickerPreviewItem?.title = L("Show picker preview")
+        showPickerPreviewItem?.state = settings.showPreviewPanel ? .on : .off
+        showPickerFiltersItem?.title = L("Show filters in picker")
+        showPickerFiltersItem?.state = settings.showPickerFilters ? .on : .off
         pauseRecordingItem?.title = settings.isRecordingPaused ? L("Resume Recording") : L("Pause Recording")
         pauseRecordingItem?.state = settings.isRecordingPaused ? .on : .off
         clearHistoryItem?.title = L("Clear History…")
@@ -553,6 +571,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleRecordingPause() {
         settingsStore?.update { settings in
             settings.isRecordingPaused.toggle()
+        }
+    }
+
+    @objc private func togglePickerPreview() {
+        settingsStore?.update { settings in
+            settings.showPreviewPanel.toggle()
+        }
+        pickerController?.resizeToSettings()
+    }
+
+    @objc private func togglePickerFilters() {
+        settingsStore?.update { settings in
+            settings.showPickerFilters.toggle()
         }
     }
 
@@ -836,7 +867,7 @@ private struct StorageSettingsPane: View {
     @State private var usageText = ""
 
     var body: some View {
-        SettingsPane(L("Storage"), systemImage: "internaldrive", height: 380) {
+        SettingsPane(L("Storage"), systemImage: "internaldrive", height: 400) {
             Section(L("Limits")) {
                 storageLimitRow(
                     title: L("Max history count"),
@@ -857,6 +888,9 @@ private struct StorageSettingsPane: View {
                     step: 64
                 )
                 Text(L("0 means unlimited."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(L("Favorites are kept when clearing history and are exempt from automatic cleanup limits."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1188,4 +1222,3 @@ private struct RunningAppChoice: Identifiable {
     let name: String
     let bundleID: String
 }
-

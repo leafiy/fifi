@@ -161,14 +161,14 @@ public final class HistoryStore: @unchecked Sendable {
     public func clear(type: ClipItemType) throws -> [ClipboardItem] {
         try database.transaction {
             let removed = try database.query(
-                "SELECT \(Self.itemColumns()) FROM clipboard_items WHERE type = ? ORDER BY updated_at ASC, id ASC",
+                "SELECT \(Self.itemColumns()) FROM clipboard_items WHERE type = ? AND is_pinned = 0 ORDER BY updated_at ASC, id ASC",
                 [.text(type.rawValue)]
             ).map(item(from:))
             try database.run(
-                "DELETE FROM clipboard_items_fts WHERE rowid IN (SELECT id FROM clipboard_items WHERE type = ?)",
+                "DELETE FROM clipboard_items_fts WHERE rowid IN (SELECT id FROM clipboard_items WHERE type = ? AND is_pinned = 0)",
                 [.text(type.rawValue)]
             )
-            try database.run("DELETE FROM clipboard_items WHERE type = ?", [.text(type.rawValue)])
+            try database.run("DELETE FROM clipboard_items WHERE type = ? AND is_pinned = 0", [.text(type.rawValue)])
             return removed
         }
     }

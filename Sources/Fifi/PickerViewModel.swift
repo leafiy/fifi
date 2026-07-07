@@ -182,10 +182,25 @@ final class PickerViewModel: ObservableObject {
 
     func togglePinSelected() {
         guard let item = selectedItem, !HistoryService.isMemoryItem(item.id) else { return }
-        let index = selectedIndex
-        historyService.togglePin(item: item)
-        items[index].isPinned.toggle()
-        selectedIndex = index
+        togglePin(item: item)
+    }
+
+    func togglePin(item: ClipboardItem) {
+        guard !HistoryService.isMemoryItem(item.id) else { return }
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else {
+            reload()
+            return
+        }
+        guard historyService.togglePin(item: item) else {
+            reload()
+            return
+        }
+        if viewMode == .favorites, item.isPinned {
+            items.remove(at: index)
+        } else {
+            items[index].isPinned.toggle()
+            selectedIndex = index
+        }
         clampSelection()
     }
 

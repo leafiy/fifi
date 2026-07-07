@@ -15,6 +15,8 @@ struct PickerView: View {
 
     private var density: RowDensity { settingsStore.settings.rowDensity }
     private var showPreview: Bool { settingsStore.settings.showPreviewPanel }
+    private var showFilters: Bool { settingsStore.settings.showPickerFilters }
+    private var showSourceApp: Bool { settingsStore.settings.showSourceApp }
     private var listWidth: CGFloat { CGFloat(settingsStore.settings.pickerWidth) }
 
     var body: some View {
@@ -38,7 +40,10 @@ struct PickerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.regularMaterial)
-        .onAppear(perform: focusSearch)
+        .onAppear(perform: handleAppear)
+        .onChange(of: showFilters) {
+            clearHiddenFiltersIfNeeded()
+        }
         .onChange(of: viewModel.focusToken) {
             focusSearch()
         }
@@ -73,13 +78,15 @@ struct PickerView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            HStack(spacing: LeafiyDesign.Spacing.xs) {
-                typeMenu
-                appMenu
-                dateMenu
-                Spacer()
+            if showFilters {
+                HStack(spacing: LeafiyDesign.Spacing.xs) {
+                    typeMenu
+                    appMenu
+                    dateMenu
+                    Spacer()
+                }
+                .font(.caption)
             }
-            .font(.caption)
         }
         .padding(.horizontal, LeafiyDesign.Spacing.m)
         .padding(.bottom, LeafiyDesign.Spacing.xs)
@@ -185,9 +192,11 @@ struct PickerView: View {
                                 isSelected: row.index == viewModel.selectedIndex,
                                 density: density,
                                 showShortcut: settingsStore.settings.numberShortcuts,
+                                showSourceApp: showSourceApp,
                                 thumbnailLoader: thumbnailLoader,
                                 onActivate: { viewModel.activate(item: row.item) },
                                 onCopyToClipboard: { viewModel.copyToClipboard(item: row.item) },
+                                onTogglePin: { viewModel.togglePin(item: row.item) },
                                 onDelete: { viewModel.deleteItem(id: row.item.id) },
                                 onQuickAction: { viewModel.performQuickAction($0, item: row.item) }
                             )
@@ -224,10 +233,22 @@ struct PickerView: View {
         viewModel.items.enumerated().map { PickerRowModel(index: $0.offset, item: $0.element) }
     }
 
+    private func handleAppear() {
+        clearHiddenFiltersIfNeeded()
+        focusSearch()
+    }
+
     private func focusSearch() {
         DispatchQueue.main.async {
             searchFocused = true
         }
+    }
+
+    private func clearHiddenFiltersIfNeeded() {
+        guard !showFilters else { return }
+        viewModel.selectedTypes = []
+        viewModel.sourceAppBundleID = nil
+        viewModel.dateRange = .any
     }
 }
 

@@ -98,7 +98,7 @@ public enum ClipboardClassifier {
                 type: .file,
                 previewText: collapsedPreview(fileReference),
                 searchText: joinedSearchText(fileTerms.map { Optional($0) } + [appName]),
-                byteSize: 0,
+                byteSize: totalFileByteSize(paths),
                 fileReference: fileReference,
                 metadataJSON: metadataJSON(["count": paths.count]),
                 hashInput: Data(sortedReference.utf8)
@@ -269,6 +269,14 @@ public enum ClipboardClassifier {
     private static func fileName(for path: String) -> String {
         let name = URL(fileURLWithPath: path).lastPathComponent
         return name.isEmpty ? path : name
+    }
+
+    private static func totalFileByteSize(_ paths: [String]) -> Int {
+        paths.reduce(0) { total, path in
+            let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? NSNumber)?.intValue ?? 0
+            guard size > 0, total <= Int.max - size else { return total }
+            return total + size
+        }
     }
 
     private static func httpURL(from string: String) -> URL? {

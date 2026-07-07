@@ -147,6 +147,13 @@ final class PickerController {
         }
     }
 
+    func resizeToSettings() {
+        resizePanel()
+        if panel.isVisible {
+            positionPanel()
+        }
+    }
+
     func hide() {
         guard panel.isVisible else { return }
         lastHideTime = ProcessInfo.processInfo.systemUptime

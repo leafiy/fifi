@@ -14,6 +14,9 @@
 "Fifi couldn’t register “%@” (error %d) — another app probably owns it. You can still open the picker by clicking the Fifi menu bar icon, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically." = "Fifi 无法注册“%@”（错误 %d）——可能已被其他 App 占用。你仍可点击 Fifi 菜单栏图标打开选择器，或在设置中选择其他快捷键。此快捷键只用于打开选择器；使用 ⌘C 拷贝的内容始终会自动记录。";
 "OK" = "好";
 "Open Picker" = "打开选择器";
+"Show picker preview" = "显示选择器预览窗口";
+"Show filters in picker" = "在选择器中显示筛选";
+"Show app source" = "显示 App 来源";
 "Pause Recording" = "暂停记录";
 "Resume Recording" = "继续记录";
 "Clear History…" = "清除历史记录…";
@@ -41,6 +44,7 @@
 "Retention days" = "保留天数";
 "Max storage (MB)" = "最大存储空间（MB）";
 "0 means unlimited." = "0 表示无限制。";
+"Favorites are kept when clearing history and are exempt from automatic cleanup limits." = "收藏项目在清除历史记录时会保留，并且不受自动清理限制影响。";
 "Usage" = "用量";
 "Current usage" = "当前用量";
 "Actions" = "操作";
@@ -81,6 +85,8 @@
 "%d items" = "%d 项";
 "↩ paste · ⌘1-0 copy" = "↩ 粘贴 · ⌘1-0 拷贝";
 "Send to Clipboard" = "发送到剪贴板";
+"Add to Favorites" = "添加到收藏";
+"Remove from Favorites" = "取消收藏";
 "Delete" = "删除";
 "Empty text" = "空文本";
 "Image" = "图像";
@@ -178,6 +184,7 @@
 "Type" = "类型";
 "%d types" = "%d 种类型";
 "App" = "App";
+"%d chars" = "%d 字符";
 "Regex search" = "正则搜索";
 "Search (regex)" = "搜索（正则）";
 "↩ paste" = "↩ 粘贴";

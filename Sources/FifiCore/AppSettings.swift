@@ -91,6 +91,8 @@ public struct AppSettings: Sendable, Equatable, Codable {
     public var pickerWidth: Int
     public var pickerHeight: Int
     public var showPreviewPanel: Bool
+    public var showPickerFilters: Bool
+    public var showSourceApp: Bool
     public var numberShortcuts: Bool
     public var sortOrder: HistorySortOrder
     public var fuzzyRanking: Bool
@@ -110,6 +112,8 @@ public struct AppSettings: Sendable, Equatable, Codable {
         pickerWidth: Int = 420,
         pickerHeight: Int = 480,
         showPreviewPanel: Bool = false,
+        showPickerFilters: Bool = false,
+        showSourceApp: Bool = true,
         numberShortcuts: Bool = true,
         sortOrder: HistorySortOrder = .recency,
         fuzzyRanking: Bool = false,
@@ -128,6 +132,8 @@ public struct AppSettings: Sendable, Equatable, Codable {
         self.pickerWidth = pickerWidth
         self.pickerHeight = pickerHeight
         self.showPreviewPanel = showPreviewPanel
+        self.showPickerFilters = showPickerFilters
+        self.showSourceApp = showSourceApp
         self.numberShortcuts = numberShortcuts
         self.sortOrder = sortOrder
         self.fuzzyRanking = fuzzyRanking
@@ -152,6 +158,8 @@ public struct AppSettings: Sendable, Equatable, Codable {
         pickerWidth = try container.decodeIfPresent(Int.self, forKey: .pickerWidth) ?? defaults.pickerWidth
         pickerHeight = try container.decodeIfPresent(Int.self, forKey: .pickerHeight) ?? defaults.pickerHeight
         showPreviewPanel = try container.decodeIfPresent(Bool.self, forKey: .showPreviewPanel) ?? defaults.showPreviewPanel
+        showPickerFilters = try container.decodeIfPresent(Bool.self, forKey: .showPickerFilters) ?? defaults.showPickerFilters
+        showSourceApp = try container.decodeIfPresent(Bool.self, forKey: .showSourceApp) ?? defaults.showSourceApp
         numberShortcuts = try container.decodeIfPresent(Bool.self, forKey: .numberShortcuts) ?? defaults.numberShortcuts
         sortOrder = try container.decodeIfPresent(HistorySortOrder.self, forKey: .sortOrder) ?? defaults.sortOrder
         fuzzyRanking = try container.decodeIfPresent(Bool.self, forKey: .fuzzyRanking) ?? defaults.fuzzyRanking

@@ -105,12 +105,15 @@ final class HistoryService {
         }
     }
 
-    func togglePin(item: ClipboardItem) {
-        guard !Self.isMemoryItem(item.id) else { return }
+    @discardableResult
+    func togglePin(item: ClipboardItem) -> Bool {
+        guard !Self.isMemoryItem(item.id) else { return false }
         do {
             try freshHistoryStore().setPinned(id: item.id, !item.isPinned)
+            return true
         } catch {
             NSLog("Failed to toggle pin for item \(item.id): \(String(describing: error))")
+            return false
         }
     }
 

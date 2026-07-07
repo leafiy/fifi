@@ -9,6 +9,7 @@ struct PickerRowView: View {
         static let shortcutBadgeWidth: CGFloat = 30
         static let rowActionsWidth: CGFloat = 68
         static let rowActionSize: CGFloat = 32
+        static let thumbnailSize: CGFloat = LeafiyDesign.Size.rowIcon
         static let colorSwatchSize: CGFloat = LeafiyDesign.Spacing.l
     }
 
@@ -17,9 +18,11 @@ struct PickerRowView: View {
     let isSelected: Bool
     let density: RowDensity
     let showShortcut: Bool
+    let showSourceApp: Bool
     let thumbnailLoader: ThumbnailLoader
     let onActivate: () -> Void
     let onCopyToClipboard: () -> Void
+    let onTogglePin: () -> Void
     let onDelete: () -> Void
     let onQuickAction: (PickerQuickAction) -> Void
 
@@ -50,6 +53,8 @@ struct PickerRowView: View {
     @ViewBuilder private var contextMenu: some View {
         Button(L("Send to Clipboard"), action: onCopyToClipboard)
         Button(L("Copy as Plain Text")) { onQuickAction(.copyPlainText) }
+        Button(item.isPinned ? L("Remove from Favorites") : L("Add to Favorites"), action: onTogglePin)
+            .disabled(HistoryService.isMemoryItem(item.id))
         switch item.type {
         case .color:
             Button(L("Copy as HEX")) { onQuickAction(.copyColorHex) }
@@ -132,14 +137,13 @@ struct PickerRowView: View {
 
     private var imagePreview: some View {
         HStack(alignment: .center, spacing: LeafiyDesign.Spacing.s) {
-            ThumbnailView(item: item, loader: thumbnailLoader)
-                .frame(width: LeafiyDesign.Size.rowIcon, height: LeafiyDesign.Size.rowIcon)
+            ThumbnailView(item: item, loader: thumbnailLoader, size: Metrics.thumbnailSize)
             VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
                 Text(L("Image"))
                     .font(.callout)
                     .lineLimit(1)
-                if let dimensions = imageDimensions {
-                    Text(dimensions)
+                if let imageDetailText {
+                    Text(imageDetailText)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -173,7 +177,7 @@ struct PickerRowView: View {
                     .font(PickerSymbolFont.callout)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Text(filePath)
+                Text(fileDetailText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -206,10 +210,7 @@ struct PickerRowView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            Text(item.sourceAppName ?? L("Unknown"))
-                .lineLimit(1)
-            Text("·")
-            Text(relativeUpdatedAt)
+            Text(metadataText)
                 .lineLimit(1)
         }
         .font(.caption2)
@@ -256,6 +257,39 @@ struct PickerRowView: View {
         return "\(width) × \(height)"
     }
 
+    private var imageDetailText: String? {
+        let detail = [imageDimensions, fileSizeText].compactMap(\.self).joined(separator: " · ")
+        return detail.isEmpty ? nil : detail
+    }
+
+    private var fileSizeText: String? {
+        guard item.byteSize > 0 else { return nil }
+        let megabytes = Double(item.byteSize) / 1_048_576
+        let rounded = item.byteSize > 0 ? max(megabytes, 0.1) : 0
+        return String(format: "%.1fm", rounded)
+    }
+
+    private var textCharacterCount: Int {
+        (item.contentText ?? item.previewText).count
+    }
+
+    private var itemMetricText: String? {
+        switch item.type {
+        case .text, .richText:
+            return String(format: L("%d chars"), textCharacterCount)
+        default:
+            return nil
+        }
+    }
+
+    private var metadataText: String {
+        var parts: [String] = []
+        if let itemMetricText { parts.append(itemMetricText) }
+        if showSourceApp { parts.append(item.sourceAppName ?? L("Unknown")) }
+        parts.append(relativeUpdatedAt)
+        return parts.joined(separator: " · ")
+    }
+
     private var colorText: String { item.contentText ?? item.previewText }
 
     private var colorSwatch: Color {
@@ -270,6 +304,10 @@ struct PickerRowView: View {
     private var fileName: String {
         let last = URL(fileURLWithPath: filePath).lastPathComponent
         return last.isEmpty ? filePath : last
+    }
+
+    private var fileDetailText: String {
+        [filePath, fileSizeText].compactMap(\.self).joined(separator: " · ")
     }
 
     private var fileIcon: NSImage { NSWorkspace.shared.icon(forFile: filePath) }

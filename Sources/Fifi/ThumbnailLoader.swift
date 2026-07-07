@@ -44,6 +44,7 @@ final class ThumbnailLoader {
 struct ThumbnailView: View {
     let item: ClipboardItem
     let loader: ThumbnailLoader
+    let size: CGFloat
 
     @State private var image: NSImage?
     @State private var loadedPath: String?
@@ -55,13 +56,16 @@ struct ThumbnailView: View {
             if let image {
                 Image(nsImage: image)
                     .resizable()
-                    .scaledToFill()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size, height: size)
+                    .clipped()
             } else {
                 Image(systemName: "photo")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
             }
         }
+        .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: 5))
         .onAppear(perform: load)
         .onChange(of: item.thumbnailPath) {

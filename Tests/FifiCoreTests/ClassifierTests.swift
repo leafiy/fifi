@@ -66,6 +66,19 @@ final class ClassifierTests: FifiCoreTestCase {
         XCTAssertFalse(classified.previewText.contains("  "))
     }
 
+    func testFileCaptureIncludesReadableFileSize() throws {
+        let directory = try makeTemporaryDirectory()
+        let first = directory.appendingPathComponent("first.txt")
+        let second = directory.appendingPathComponent("second.txt")
+        try Data(repeating: 1, count: 3).write(to: first)
+        try Data(repeating: 2, count: 5).write(to: second)
+
+        let classified = try XCTUnwrap(ClipboardClassifier.classify(makeCandidate(filePaths: [first.path, second.path])))
+
+        XCTAssertEqual(classified.type, .file)
+        XCTAssertEqual(classified.byteSize, 8)
+    }
+
     func testLargeTextNeedsTextBlobAndKeepsFullTextOutOfInlineContent() throws {
         let largeText = String(repeating: "x", count: ClipboardClassifier.maxInlineTextBytes + 1)
         let classified = try XCTUnwrap(ClipboardClassifier.classify(makeCandidate(plainText: largeText)))
