@@ -2,6 +2,7 @@
 import PackageDescription
 
 var products: [Product] = []
+var dependencies: [Package.Dependency] = []
 var targets: [Target] = [
     .systemLibrary(name: "CSQLite", path: "Sources/CSQLite"),
     .target(
@@ -16,6 +17,7 @@ var targets: [Target] = [
 
 // The app target needs AppKit/SwiftUI; FifiCore + tests also build on Linux.
 #if os(macOS)
+dependencies.append(.package(path: "../leafiy-ui"))
 products.append(.executable(name: "fifi", targets: ["Fifi"]))
 targets.append(
     .executableTarget(
@@ -36,10 +38,6 @@ let package = Package(
         .macOS(.v14)
     ],
     products: products,
-    dependencies: [
-        // Shared Leafiy design system, vendored in-repo (canonical source:
-        // the leafiy-ui repository; re-sync with its scripts/sync-into-apps.sh).
-        .package(path: "Vendor/leafiy-ui"),
-    ],
+    dependencies: dependencies,
     targets: targets
 )
