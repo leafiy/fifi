@@ -1,6 +1,6 @@
 import Foundation
 
-public struct IgnoreRegexRule: Sendable, Equatable, Identifiable {
+public struct IgnoreRegexRule: Sendable, Equatable, Identifiable, Codable {
     public let id: Int64
     public var pattern: String
     public var label: String?
@@ -14,7 +14,7 @@ public struct IgnoreRegexRule: Sendable, Equatable, Identifiable {
     }
 }
 
-public struct IgnoredApp: Sendable, Equatable, Identifiable {
+public struct IgnoredApp: Sendable, Equatable, Identifiable, Codable {
     public var id: String { bundleID }
     public var bundleID: String
     public var appName: String?
@@ -30,8 +30,7 @@ public final class IgnoreRulesStore {
 
     public init(database: Database) {
         self.database = database
-        try? database.execute("CREATE TABLE IF NOT EXISTS ignore_apps (bundle_id TEXT PRIMARY KEY, app_name TEXT);")
-        try? database.execute("CREATE TABLE IF NOT EXISTS ignore_regex_rules (id INTEGER PRIMARY KEY AUTOINCREMENT, pattern TEXT NOT NULL, label TEXT, enabled INTEGER NOT NULL DEFAULT 1);")
+        try? SchemaMigrator.migrate(database)
     }
 
     public func ignoredApps() throws -> [IgnoredApp] {

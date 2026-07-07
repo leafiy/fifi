@@ -93,47 +93,49 @@
 ## V2: Power Features and Polish
 
 ### Advanced Search
-- [ ] Add type filters: text, image, URL, color, file.
-- [ ] Add date filters.
-- [ ] Add source app filters.
-- [ ] Add optional regex search mode.
-- [ ] Add fuzzy search ranking.
-- [ ] Add most-used ranking option.
+- [x] Add type filters: text, image, URL, color, file.
+- [x] Add date filters.
+- [x] Add source app filters.
+- [x] Add optional regex search mode.
+- [x] Add fuzzy search ranking.
+- [x] Add most-used ranking option.
 
 ### Enhanced Preview
-- [ ] Add large preview panel.
-- [ ] Add Quick Look support for files.
-- [ ] Add image full preview.
-- [ ] Add copy color as HEX, RGB, HSL.
-- [ ] Add copy URL without tracking parameters.
-- [ ] Add copy text as plain text.
+- [x] Add large preview panel.
+- [x] Add Quick Look support for files.
+- [x] Add image full preview.
+- [x] Add copy color as HEX, RGB, HSL.
+- [x] Add copy URL without tracking parameters.
+- [x] Add copy text as plain text.
 
 ### Privacy and Security
-- [ ] Add built-in sensitive content detection.
-- [ ] Optionally ignore passwords, tokens, API keys, credit cards, and verification codes.
-- [ ] Add private mode where clipboard entries are not written to disk.
-- [ ] Add encrypted history storage option.
-- [ ] Add auto-delete sensitive entries after a short delay.
-- [ ] Add per-app privacy presets.
+- [x] Add built-in sensitive content detection.
+- [x] Optionally ignore passwords, tokens, API keys, credit cards, and verification codes.
+- [x] Add private mode where clipboard entries are not written to disk.
+- [x] Add encrypted history storage option.
+- [x] Add auto-delete sensitive entries after a short delay.
+- [x] Add per-app privacy presets.
 
 ### Workflow Improvements
-- [ ] Add quick actions per clipboard type.
-- [ ] Add configurable number shortcuts for top results.
-- [ ] Add custom popup size and position behavior.
-- [ ] Add configurable row density.
-- [ ] Add light/dark/system appearance setting.
-- [ ] Add import/export settings.
-- [ ] Add backup and restore for history.
+- [x] Add quick actions per clipboard type.
+- [x] Add configurable number shortcuts for top results.
+- [x] Add custom popup size and position behavior.
+- [x] Add configurable row density.
+- [x] Add light/dark/system appearance setting.
+- [x] Add import/export settings.
+- [x] Add backup and restore for history.
 
 ### Smart Organization Without Groups
-- [ ] Add favorites view.
-- [ ] Add recent view.
-- [ ] Add frequent view.
-- [ ] Add type-filtered views.
-- [ ] Avoid folder/group hierarchy.
-- [ ] Keep navigation flat and search-first.
+- [x] Add favorites view.
+- [x] Add recent view.
+- [x] Add frequent view.
+- [x] Add type-filtered views.
+- [x] Avoid folder/group hierarchy.
+- [x] Keep navigation flat and search-first.
 
 ### Sync and Portability
+
+> Deferred by request. iCloud sync is the only V2 area not implemented; it needs a paid Apple Developer account, an iCloud container + entitlements, and a Developer ID provisioning profile embedded in the bundle (build/release-pipeline changes), so it is intentionally left for a later pass.
 - [ ] Evaluate iCloud sync.
 - [ ] Add optional sync for text entries.
 - [ ] Avoid syncing large images by default.
@@ -141,15 +143,15 @@
 - [ ] Add setting to disable sync entirely.
 
 ### Reliability
-- [ ] Add crash recovery for database writes.
-- [ ] Add database migration system.
-- [ ] Add storage corruption detection.
-- [ ] Add safe fallback if clipboard data cannot be decoded.
-- [ ] Add diagnostics export for debugging.
+- [x] Add crash recovery for database writes.
+- [x] Add database migration system.
+- [x] Add storage corruption detection.
+- [x] Add safe fallback if clipboard data cannot be decoded.
+- [x] Add diagnostics export for debugging.
 
 ### V2 Acceptance Criteria
-- [ ] User can filter and search history more precisely.
-- [ ] User can enable privacy protections for sensitive content.
-- [ ] User can use favorites and smart views without managing groups.
-- [ ] App remains fast with very large history.
+- [x] User can filter and search history more precisely.
+- [x] User can enable privacy protections for sensitive content.
+- [x] User can use favorites and smart views without managing groups.
+- [x] App remains fast with very large history.
 - [ ] Optional sync does not compromise performance or privacy.

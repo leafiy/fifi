@@ -4,28 +4,39 @@ import LeafiyUI
 import SwiftUI
 
 struct PickerView: View {
-    private enum Metrics {
-        static let pickerWidth: CGFloat = 420
-        static let pickerHeight: CGFloat = 480
-        static let shortcutBadgeWidth: CGFloat = 30
-        static let rowActionsWidth: CGFloat = 68
-        static let rowActionSize: CGFloat = 32
-        static let colorSwatchSize: CGFloat = LeafiyDesign.Spacing.l
-    }
+    static let previewPanelWidth: CGFloat = 300
 
     @ObservedObject var viewModel: PickerViewModel
+    @ObservedObject var settingsStore: SettingsStore
     let thumbnailLoader: ThumbnailLoader
+    let blobStore: BlobStore
 
     @FocusState private var searchFocused: Bool
 
+    private var density: RowDensity { settingsStore.settings.rowDensity }
+    private var showPreview: Bool { settingsStore.settings.showPreviewPanel }
+    private var listWidth: CGFloat { CGFloat(settingsStore.settings.pickerWidth) }
+
     var body: some View {
-        VStack(spacing: 0) {
-            searchBar
-            Divider()
-            itemList
-            footer
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                searchBar
+                filterBar
+                Divider()
+                itemList
+                footer
+            }
+            .frame(width: showPreview ? listWidth : nil)
+            .frame(maxWidth: showPreview ? nil : .infinity, maxHeight: .infinity)
+
+            if showPreview {
+                Divider()
+                PreviewPanel(item: viewModel.selectedItem, blobStore: blobStore, viewModel: viewModel)
+                    .frame(width: Self.previewPanelWidth)
+                    .frame(maxHeight: .infinity)
+            }
         }
-        .frame(width: Metrics.pickerWidth, height: Metrics.pickerHeight)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.regularMaterial)
         .onAppear(perform: focusSearch)
         .onChange(of: viewModel.focusToken) {
@@ -37,13 +48,124 @@ struct PickerView: View {
         HStack(spacing: LeafiyDesign.Spacing.s) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
-            TextField(L("Search clipboard"), text: $viewModel.query)
+            TextField(viewModel.isRegex ? L("Search (regex)") : L("Search clipboard"), text: $viewModel.query)
                 .textFieldStyle(.plain)
                 .focused($searchFocused)
+            Toggle(isOn: $viewModel.isRegex) {
+                Text(".*")
+                    .font(.caption.monospaced())
+            }
+            .toggleStyle(.button)
+            .help("Regex search")
         }
         .font(.body)
         .padding(.horizontal, LeafiyDesign.Spacing.m)
         .padding(.vertical, LeafiyDesign.Spacing.s)
+    }
+
+    private var filterBar: some View {
+        VStack(spacing: LeafiyDesign.Spacing.xs) {
+            Picker("View", selection: $viewModel.viewMode) {
+                ForEach(PickerViewMode.allCases) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            HStack(spacing: LeafiyDesign.Spacing.xs) {
+                typeMenu
+                appMenu
+                dateMenu
+                Spacer()
+            }
+            .font(.caption)
+        }
+        .padding(.horizontal, LeafiyDesign.Spacing.m)
+        .padding(.bottom, LeafiyDesign.Spacing.xs)
+    }
+
+    private var typeMenu: some View {
+        Menu {
+            Button {
+                viewModel.selectedTypes = []
+            } label: {
+                Label("All types", systemImage: viewModel.selectedTypes.isEmpty ? "checkmark" : "")
+            }
+            Divider()
+            ForEach(ClipItemType.allCases, id: \.self) { type in
+                Button {
+                    toggleType(type)
+                } label: {
+                    Label(type.fifiLabel, systemImage: viewModel.selectedTypes.contains(type) ? "checkmark" : "")
+                }
+            }
+        } label: {
+            Label(typeMenuLabel, systemImage: "line.3.horizontal.decrease.circle")
+        }
+        .fixedSize()
+    }
+
+    private var appMenu: some View {
+        Menu {
+            Button {
+                viewModel.sourceAppBundleID = nil
+            } label: {
+                Label("All apps", systemImage: viewModel.sourceAppBundleID == nil ? "checkmark" : "")
+            }
+            if !viewModel.sourceApps.isEmpty {
+                Divider()
+                ForEach(viewModel.sourceApps) { app in
+                    Button {
+                        viewModel.sourceAppBundleID = app.bundleID
+                    } label: {
+                        Label(
+                            app.appName ?? app.bundleID,
+                            systemImage: viewModel.sourceAppBundleID == app.bundleID ? "checkmark" : ""
+                        )
+                    }
+                }
+            }
+        } label: {
+            Label(appMenuLabel, systemImage: "app.badge")
+        }
+        .fixedSize()
+    }
+
+    private var dateMenu: some View {
+        Menu {
+            ForEach(PickerDateRange.allCases) { range in
+                Button {
+                    viewModel.dateRange = range
+                } label: {
+                    Label(range.label, systemImage: viewModel.dateRange == range ? "checkmark" : "")
+                }
+            }
+        } label: {
+            Label(viewModel.dateRange.label, systemImage: "calendar")
+        }
+        .fixedSize()
+    }
+
+    private var typeMenuLabel: String {
+        switch viewModel.selectedTypes.count {
+        case 0: return "Type"
+        case 1: return viewModel.selectedTypes.first!.fifiLabel
+        default: return "\(viewModel.selectedTypes.count) types"
+        }
+    }
+
+    private var appMenuLabel: String {
+        guard let bundleID = viewModel.sourceAppBundleID else { return "App" }
+        return viewModel.sourceApps.first { $0.bundleID == bundleID }?.appName ?? "App"
+    }
+
+    private func toggleType(_ type: ClipItemType) {
+        if viewModel.selectedTypes.contains(type) {
+            viewModel.selectedTypes.remove(type)
+        } else {
+            viewModel.selectedTypes.insert(type)
+        }
     }
 
     @ViewBuilder private var itemList: some View {
@@ -61,22 +183,13 @@ struct PickerView: View {
                                 item: row.item,
                                 index: row.index,
                                 isSelected: row.index == viewModel.selectedIndex,
+                                density: density,
+                                showShortcut: settingsStore.settings.numberShortcuts,
                                 thumbnailLoader: thumbnailLoader,
-                                onActivate: {
-                                    viewModel.activate(item: row.item)
-                                },
-                                onCopyToClipboard: {
-                                    viewModel.copyToClipboard(item: row.item)
-                                },
-                                onContextCopyToClipboard: {
-                                    viewModel.copyToClipboard(id: row.item.id)
-                                },
-                                onDelete: {
-                                    viewModel.deleteItem(id: row.item.id)
-                                },
-                                onContextDelete: {
-                                    viewModel.deleteItem(id: row.item.id)
-                                }
+                                onActivate: { viewModel.activate(item: row.item) },
+                                onCopyToClipboard: { viewModel.copyToClipboard(item: row.item) },
+                                onDelete: { viewModel.deleteItem(id: row.item.id) },
+                                onQuickAction: { viewModel.performQuickAction($0, item: row.item) }
                             )
                             .id(row.item.id)
                             .onAppear {
@@ -103,7 +216,7 @@ struct PickerView: View {
         FooterBar {
             Text(String(format: viewModel.items.count == 1 ? L("%d item") : L("%d items"), viewModel.items.count))
             Spacer()
-            Text(L("↩ paste · ⌘1-0 copy"))
+            Text(settingsStore.settings.numberShortcuts ? L("↩ paste · ⌘1-0 copy") : L("↩ paste"))
         }
     }
 
@@ -121,361 +234,19 @@ struct PickerView: View {
 private struct PickerRowModel: Identifiable {
     let index: Int
     let item: ClipboardItem
-
     var id: Int64 { item.id }
 }
 
-private struct PickerRowView: View {
-    private enum Metrics {
-        static let shortcutBadgeWidth: CGFloat = 30
-        static let rowActionsWidth: CGFloat = 68
-        static let rowActionSize: CGFloat = 32
-        static let colorSwatchSize: CGFloat = LeafiyDesign.Spacing.l
-    }
-
-    let item: ClipboardItem
-    let index: Int
-    let isSelected: Bool
-    let thumbnailLoader: ThumbnailLoader
-    let onActivate: () -> Void
-    let onCopyToClipboard: () -> Void
-    let onContextCopyToClipboard: () -> Void
-    let onDelete: () -> Void
-    let onContextDelete: () -> Void
-
-    var body: some View {
-        HStack(alignment: .center, spacing: LeafiyDesign.Spacing.s) {
-            shortcutBadge
-            contentColumn
-            rowActions
-        }
-        .padding(.leading, LeafiyDesign.Spacing.m)
-        .padding(.trailing, LeafiyDesign.Spacing.s)
-        .padding(.vertical, LeafiyDesign.Spacing.s)
-        .background {
-            if isSelected {
-                RoundedRectangle(cornerRadius: LeafiyDesign.Radius.control)
-                    .fill(Color.accentColor.opacity(0.18))
-                    .padding(.horizontal, LeafiyDesign.Spacing.xs)
-                    .padding(.vertical, LeafiyDesign.Spacing.xxs)
-            }
-        }
-        .contentShape(Rectangle())
-        .contextMenu {
-            Button(L("Send to Clipboard"), action: onContextCopyToClipboard)
-            Button(L("Delete"), role: .destructive, action: onContextDelete)
+extension ClipItemType {
+    var fifiLabel: String {
+        switch self {
+        case .text: return L("Text")
+        case .richText: return L("Rich Text")
+        case .url: return L("URLs")
+        case .image: return L("Images")
+        case .color: return L("Colors")
+        case .file: return L("Files")
+        case .unknown: return L("Other")
         }
     }
-
-    private var contentColumn: some View {
-        Group {
-            if item.type == .image {
-                imagePreview
-            } else {
-                VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xs) {
-                    rowPreview
-                    metadataLine
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder private var rowPreview: some View {
-        switch item.type {
-        case .text, .richText:
-            textPreview
-        case .url:
-            urlPreview
-        case .image:
-            imagePreview
-        case .color:
-            colorPreview
-        case .file:
-            filePreview
-        case .unknown:
-            unknownPreview
-        }
-    }
-
-    private var shortcutBadge: some View {
-        HStack(spacing: LeafiyDesign.Spacing.xxs) {
-            Image(systemName: "command")
-                .font(.caption2.weight(.medium))
-            Text(shortcutLabel ?? "")
-                .font(.caption2.monospacedDigit())
-        }
-        .foregroundStyle(shortcutLabel == nil ? Color.clear : Color.secondary)
-        .frame(width: Metrics.shortcutBadgeWidth, alignment: .leading)
-    }
-
-    private var shortcutLabel: String? {
-        guard index < 10 else { return nil }
-        return index == 9 ? "0" : String(index + 1)
-    }
-
-    private var textPreview: some View {
-        Text(verbatim: item.previewText.isEmpty ? L("Empty text") : item.previewText)
-            .font(PickerSymbolFont.callout)
-            .lineLimit(2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var urlPreview: some View {
-        VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
-            Text(verbatim: urlDomain)
-                .font(.callout.weight(.semibold))
-                .lineLimit(1)
-            Text(verbatim: urlText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var imagePreview: some View {
-        HStack(alignment: .center, spacing: LeafiyDesign.Spacing.s) {
-            ThumbnailView(item: item, loader: thumbnailLoader)
-                .frame(width: LeafiyDesign.Size.rowIcon, height: LeafiyDesign.Size.rowIcon)
-            VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
-                Text(verbatim: item.previewText.isEmpty ? L("Image") : item.previewText)
-                    .font(.callout)
-                    .lineLimit(1)
-                if let dimensions = imageDimensions {
-                    Text(verbatim: dimensions)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                metadataLine
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var colorPreview: some View {
-        HStack(spacing: LeafiyDesign.Spacing.s) {
-            RoundedRectangle(cornerRadius: LeafiyDesign.Radius.control)
-                .fill(colorSwatch)
-                .frame(width: Metrics.colorSwatchSize, height: Metrics.colorSwatchSize)
-                .overlay(RoundedRectangle(cornerRadius: LeafiyDesign.Radius.control).strokeBorder(.quaternary))
-            Text(verbatim: colorText)
-                .font(.callout.monospaced())
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var filePreview: some View {
-        HStack(spacing: LeafiyDesign.Spacing.s) {
-            Image(nsImage: fileIcon)
-                .resizable()
-                .frame(width: LeafiyDesign.Size.rowIcon, height: LeafiyDesign.Size.rowIcon)
-            VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
-                Text(verbatim: fileName)
-                    .font(PickerSymbolFont.callout)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text(verbatim: filePath)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var unknownPreview: some View {
-        HStack(spacing: LeafiyDesign.Spacing.s) {
-            Image(systemName: "questionmark.square")
-                .foregroundStyle(.secondary)
-            Text(verbatim: unknownLabel)
-                .font(PickerSymbolFont.callout)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var metadataLine: some View {
-        HStack(spacing: LeafiyDesign.Spacing.xs) {
-            if item.isPinned {
-                Image(systemName: "pin.fill")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-            }
-            Text(verbatim: item.sourceAppName ?? L("Unknown"))
-                .lineLimit(1)
-            Text(verbatim: "·")
-            Text(Self.relativeDateFormatter.localizedString(for: item.updatedAt, relativeTo: Date()))
-                .lineLimit(1)
-        }
-        .font(.caption2)
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var rowActions: some View {
-        HStack(spacing: LeafiyDesign.Spacing.xs) {
-            RowActionButton(
-                systemImage: "doc.on.clipboard",
-                help: L("Send to Clipboard"),
-                size: Metrics.rowActionSize,
-                action: onCopyToClipboard
-            )
-            RowActionButton(
-                systemImage: "trash",
-                help: L("Delete"),
-                size: Metrics.rowActionSize,
-                action: onDelete
-            )
-        }
-        .frame(width: Metrics.rowActionsWidth, alignment: .trailing)
-    }
-
-    private var metadata: [String: Any] {
-        guard let metadataJSON = item.metadataJSON,
-              let data = metadataJSON.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return [:]
-        }
-        return object
-    }
-
-    private var urlText: String {
-        item.contentText ?? item.previewText
-    }
-
-    private var urlDomain: String {
-        if let domain = metadata["domain"] as? String, !domain.isEmpty {
-            return domain
-        }
-        return URL(string: urlText)?.host ?? urlText
-    }
-
-    private var imageDimensions: String? {
-        guard let width = metadataInt("width"), let height = metadataInt("height") else { return nil }
-        return "\(width) × \(height)"
-    }
-
-    private var colorText: String {
-        item.contentText ?? item.previewText
-    }
-
-    private var colorSwatch: Color {
-        guard let components = ClipboardClassifier.hexColorComponents(colorText) else { return .clear }
-        return Color(red: components.r, green: components.g, blue: components.b, opacity: components.a)
-    }
-
-    private var filePath: String {
-        item.fileReference?.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? item.previewText
-    }
-
-    private var fileName: String {
-        URL(fileURLWithPath: filePath).lastPathComponent.isEmpty ? filePath : URL(fileURLWithPath: filePath).lastPathComponent
-    }
-
-    private var fileIcon: NSImage {
-        NSWorkspace.shared.icon(forFile: filePath)
-    }
-
-    private var unknownLabel: String {
-        if let first = item.previewText
-            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
-            .first
-            .map(String.init), !first.isEmpty {
-            return first
-        }
-        return L("Unknown item")
-    }
-
-    private func metadataInt(_ key: String) -> Int? {
-        if let value = metadata[key] as? Int { return value }
-        if let value = metadata[key] as? Double { return Int(value) }
-        if let value = metadata[key] as? String { return Int(value) }
-        return nil
-    }
-
-    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.dateTimeStyle = .named
-        formatter.unitsStyle = .short
-        return formatter
-    }()
-}
-
-private struct RowActionButton: NSViewRepresentable {
-    let systemImage: String
-    let help: String
-    let size: CGFloat
-    let action: () -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(action: action)
-    }
-
-    func makeNSView(context: Context) -> NSButton {
-        let button = NSButton(
-            image: NSImage(systemSymbolName: systemImage, accessibilityDescription: help) ?? NSImage(),
-            target: context.coordinator,
-            action: #selector(Coordinator.performAction(_:))
-        )
-        button.bezelStyle = .inline
-        button.isBordered = false
-        button.imagePosition = .imageOnly
-        button.imageScaling = .scaleProportionallyDown
-        button.setButtonType(.momentaryChange)
-        button.toolTip = help
-        button.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            button.widthAnchor.constraint(equalToConstant: size),
-            button.heightAnchor.constraint(equalToConstant: size)
-        ])
-        return button
-    }
-
-    func updateNSView(_ nsView: NSButton, context: Context) {
-        context.coordinator.action = action
-        nsView.image = NSImage(systemSymbolName: systemImage, accessibilityDescription: help)
-        nsView.imageScaling = .scaleProportionallyDown
-        nsView.toolTip = help
-    }
-
-    final class Coordinator: NSObject {
-        var action: () -> Void
-
-        init(action: @escaping () -> Void) {
-            self.action = action
-        }
-
-        @objc func performAction(_ sender: NSButton) {
-            action()
-        }
-    }
-}
-
-/// Callout font whose fallback cascade includes an installed Nerd Font, so
-/// private-use-area glyphs in clipboard text (terminal prompts, powerline
-/// segments) render instead of the LastResort boxed question marks — PUA
-/// codepoints belong to no script, so the system cascade never reaches
-/// user-installed fonts for them on its own.
-///
-/// Kept local to fifi so the picker builds against any leafiy-ui revision.
-@MainActor
-private enum PickerSymbolFont {
-    static let callout: Font = {
-        let base = NSFont.preferredFont(forTextStyle: .callout, options: [:])
-        let families = NSFontManager.shared.availableFontFamilies
-        let preferred = ["Symbols Nerd Font Mono", "Symbols Nerd Font"]
-        let family = preferred.first(where: families.contains)
-            ?? families.first { $0.contains("Nerd Font") }
-        guard let family else {
-            return Font(base as CTFont)
-        }
-        let fallback = NSFontDescriptor(fontAttributes: [.family: family])
-        let descriptor = base.fontDescriptor.addingAttributes([.cascadeList: [fallback]])
-        return Font((NSFont(descriptor: descriptor, size: base.pointSize) ?? base) as CTFont)
-    }()
 }
