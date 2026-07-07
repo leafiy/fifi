@@ -24,7 +24,7 @@ final class QuickLookController: NSObject {
     }
 }
 
-extension QuickLookController: QLPreviewPanelDataSource {
+extension QuickLookController: @MainActor QLPreviewPanelDataSource {
     func numberOfPreviewItems(in panel: QLPreviewPanel) -> Int {
         urls.count
     }
@@ -34,7 +34,7 @@ extension QuickLookController: QLPreviewPanelDataSource {
     }
 }
 
-extension QuickLookController: QLPreviewPanelDelegate {
+extension QuickLookController: @MainActor QLPreviewPanelDelegate {
     func previewPanelDidClose(_ panel: QLPreviewPanel) {
         urls = []
     }
