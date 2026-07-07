@@ -21,9 +21,9 @@ struct SettingsView: View {
 
         var windowSize: NSSize {
             switch self {
-            case .general: return NSSize(width: 540, height: 268)
-            case .storage: return NSSize(width: 520, height: 286)
-            case .ignore: return NSSize(width: 660, height: 280)
+            case .general: return NSSize(width: 640, height: 268)
+            case .storage: return NSSize(width: 640, height: 286)
+            case .ignore: return NSSize(width: 640, height: 318)
             }
         }
     }
@@ -261,100 +261,108 @@ struct SettingsView: View {
 
     private var ignoreTab: some View {
         SettingsPane {
-            SettingsSection("Ignored Apps", titleIndent: 0) {
-                SettingsContentColumn(indent: 0) {
+            SettingsSection("Ignored Apps") {
+                SettingsRow("Apps") {
                     if ignoredApps.isEmpty {
                         Text("No ignored apps")
                             .foregroundStyle(.secondary)
-                    }
-                    ForEach(ignoredApps) { app in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(app.appName?.isEmpty == false ? app.appName! : app.bundleID)
-                                Text(app.bundleID)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button {
-                                removeIgnoredApp(app)
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.borderless)
-                        }
-                    }
-                    HStack {
-                        TextField("Bundle identifier", text: $bundleIDToAdd)
-                            .textFieldStyle(.roundedBorder)
-                        Button("Add") {
-                            addIgnoredApp(bundleID: bundleIDToAdd, appName: nil)
-                        }
-                        .disabled(bundleIDToAdd.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        Menu("Running Apps") {
-                            ForEach(runningApps) { app in
-                                Button("\(app.name) (\(app.bundleID))") {
-                                    addIgnoredApp(bundleID: app.bundleID, appName: app.name)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(ignoredApps) { app in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(app.appName?.isEmpty == false ? app.appName! : app.bundleID)
+                                        Text(app.bundleID)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Button {
+                                        removeIgnoredApp(app)
+                                    } label: {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.borderless)
                                 }
                             }
                         }
-                        .fixedSize()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    if let ignoreAppsError {
-                        Text(ignoreAppsError)
-                            .font(.caption)
-                            .foregroundStyle(Color.red)
+                }
+                SettingsRow("Add app") {
+                    TextField("Bundle identifier", text: $bundleIDToAdd)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Add") {
+                        addIgnoredApp(bundleID: bundleIDToAdd, appName: nil)
                     }
+                    .disabled(bundleIDToAdd.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Menu("Running Apps") {
+                        ForEach(runningApps) { app in
+                            Button("\(app.name) (\(app.bundleID))") {
+                                addIgnoredApp(bundleID: app.bundleID, appName: app.name)
+                            }
+                        }
+                    }
+                    .fixedSize()
+                }
+                if let ignoreAppsError {
+                    SettingsFootnote(ignoreAppsError)
+                        .foregroundStyle(Color.red)
                 }
             }
 
-            SettingsSection("Ignored Text (Regex)", titleIndent: 0) {
-                SettingsContentColumn(indent: 0) {
+            SettingsSection("Ignored Text (Regex)") {
+                SettingsRow("Rules") {
                     if regexRules.isEmpty {
                         Text("No rules")
                             .foregroundStyle(.secondary)
-                    }
-                    ForEach(regexRules) { rule in
-                        HStack {
-                            Toggle("", isOn: Binding(
-                                get: { regexRules.first(where: { $0.id == rule.id })?.enabled ?? rule.enabled },
-                                set: { enabled in setRegexRule(rule, enabled: enabled) }
-                            ))
-                            .labelsHidden()
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(rule.pattern)
-                                    .lineLimit(1)
-                                if let label = rule.label, !label.isEmpty {
-                                    Text(label)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(regexRules) { rule in
+                                HStack {
+                                    Toggle("", isOn: Binding(
+                                        get: { regexRules.first(where: { $0.id == rule.id })?.enabled ?? rule.enabled },
+                                        set: { enabled in setRegexRule(rule, enabled: enabled) }
+                                    ))
+                                    .labelsHidden()
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(rule.pattern)
+                                            .lineLimit(1)
+                                        if let label = rule.label, !label.isEmpty {
+                                            Text(label)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    Button {
+                                        removeRegexRule(rule)
+                                    } label: {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.borderless)
                                 }
                             }
-                            Spacer()
-                            Button {
-                                removeRegexRule(rule)
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.borderless)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    HStack {
-                        TextField("Pattern", text: $regexPatternToAdd)
-                            .textFieldStyle(.roundedBorder)
-                        TextField("Label (optional)", text: $regexLabelToAdd)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 120)
-                        Button("Add", action: addRegexRule)
-                            .disabled(regexPatternToAdd.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                    if let regexError {
-                        Text(regexError)
-                            .font(.caption)
-                            .foregroundStyle(Color.red)
-                    }
+                }
+                SettingsRow("Add rule") {
+                    TextField("Pattern", text: $regexPatternToAdd)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Label (optional)", text: $regexLabelToAdd)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                    Button("Add", action: addRegexRule)
+                        .disabled(regexPatternToAdd.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                if let regexError {
+                    SettingsFootnote(regexError)
+                        .foregroundStyle(Color.red)
                 }
             }
         }
@@ -497,16 +505,10 @@ private struct SettingsPane<Content: View>: View {
 
 private struct SettingsSection<Content: View>: View {
     private let title: String
-    private let titleIndent: CGFloat
     @ViewBuilder private let content: Content
 
-    init(
-        _ title: String,
-        titleIndent: CGFloat = SettingsMetrics.contentIndent,
-        @ViewBuilder content: () -> Content
-    ) {
+    init(_ title: String, @ViewBuilder content: () -> Content) {
         self.title = title
-        self.titleIndent = titleIndent
         self.content = content()
     }
 
@@ -514,7 +516,6 @@ private struct SettingsSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.headline)
-                .padding(.leading, titleIndent)
             VStack(alignment: .leading, spacing: 8) {
                 content
             }
@@ -532,10 +533,11 @@ private struct SettingsRow<Content: View>: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: SettingsMetrics.rowSpacing) {
             Text(title)
                 .foregroundStyle(.secondary)
                 .frame(width: SettingsMetrics.labelWidth, alignment: .trailing)
+                .padding(.top, 3)
             HStack(spacing: 8) {
                 content
             }
@@ -558,25 +560,6 @@ private struct SettingsFootnote: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.leading, SettingsMetrics.contentIndent)
-    }
-}
-
-private struct SettingsContentColumn<Content: View>: View {
-    private let indent: CGFloat
-    @ViewBuilder private let content: Content
-
-    init(indent: CGFloat = SettingsMetrics.contentIndent, @ViewBuilder content: () -> Content) {
-        self.indent = indent
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            content
-        }
-        .font(.callout)
-        .padding(.leading, indent)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
