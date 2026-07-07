@@ -308,22 +308,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 private struct FifiMenuIcon: View {
-    private enum Metrics {
-        static let iconSize: CGFloat = 18
-    }
+    /// Sized once: the status bar draws the NSImage's own point size;
+    /// SwiftUI frames on MenuBarExtra labels don't reliably constrain it.
+    private static let icon = AppDelegate.fifiImage()?.leafiyMenuBarSized()
 
     var body: some View {
         Group {
-            if let image = AppDelegate.fifiImage() {
-                Image(nsImage: image)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
+            if let icon = Self.icon {
+                Image(nsImage: icon)
             } else {
                 Image(systemName: "doc.on.clipboard")
             }
         }
-        .frame(width: Metrics.iconSize, height: Metrics.iconSize)
         .accessibilityLabel("Fifi")
     }
 }
@@ -426,7 +422,7 @@ private struct GeneralSettingsPane: View {
     let hotkeyRegistrationMessage: String?
 
     var body: some View {
-        SettingsPane("General", systemImage: "gearshape") {
+        SettingsPane("General", systemImage: "gearshape", height: 320) {
             Section("Shortcut") {
                 LabeledContent("Global shortcut") {
                     ShortcutField(spec: shortcutBinding)
@@ -504,7 +500,7 @@ private struct StorageSettingsPane: View {
     @State private var usageText = ""
 
     var body: some View {
-        SettingsPane("Storage", systemImage: "internaldrive") {
+        SettingsPane("Storage", systemImage: "internaldrive", height: 380) {
             Section("Limits") {
                 storageLimitRow(
                     title: "Max history count",
