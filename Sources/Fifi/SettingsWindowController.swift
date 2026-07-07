@@ -12,8 +12,8 @@ final class SettingsWindowController: NSWindowController {
         ignoreRulesStore: IgnoreRulesStore,
         monitorReload: @escaping () -> Void
     ) {
-        // Initial size only; the window stays freely resizable with no min/max
-        // clamp, and the grouped forms adapt to whatever size the user picks.
+        // Initial size only; pane changes resize the window without animation
+        // so tab switches feel like a settings panel, not a zoom transition.
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: SettingsView.Pane.general.windowSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -62,6 +62,6 @@ final class SettingsWindowController: NSWindowController {
         }
         var nextFrame = window.frameRect(forContentRect: NSRect(origin: contentRect.origin, size: size))
         nextFrame.origin.y = frame.maxY - nextFrame.height
-        window.setFrame(nextFrame, display: true, animate: window.isVisible)
+        window.setFrame(nextFrame, display: true, animate: false)
     }
 }

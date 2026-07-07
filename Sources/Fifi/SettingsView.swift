@@ -21,7 +21,7 @@ struct SettingsView: View {
 
         var windowSize: NSSize {
             switch self {
-            case .general: return NSSize(width: 520, height: 244)
+            case .general: return NSSize(width: 540, height: 268)
             case .storage: return NSSize(width: 520, height: 286)
             case .ignore: return NSSize(width: 660, height: 520)
             }
@@ -143,7 +143,6 @@ struct SettingsView: View {
         let normalizedKey = normalizeHotkeyKey(hotkeyKey)
         if hotkeyKey != normalizedKey {
             hotkeyKey = normalizedKey
-            return
         }
         guard firstHotkeyModifier != secondHotkeyModifier else {
             hotkeyError = "Choose two different modifier keys."
