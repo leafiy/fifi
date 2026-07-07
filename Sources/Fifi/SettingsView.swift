@@ -21,9 +21,9 @@ struct SettingsView: View {
 
         var windowSize: NSSize {
             switch self {
-            case .general: return NSSize(width: 520, height: 292)
-            case .storage: return NSSize(width: 520, height: 306)
-            case .ignore: return NSSize(width: 520, height: 338)
+            case .general: return NSSize(width: 560, height: 330)
+            case .storage: return NSSize(width: 560, height: 344)
+            case .ignore: return NSSize(width: 560, height: 376)
             }
         }
     }
@@ -65,26 +65,24 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                Picker("", selection: $selectedPane) {
-                    ForEach(Pane.allCases, id: \.self) { pane in
-                        Text(pane.title).tag(pane)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 264)
-                Spacer()
-            }
-            .padding(.top, SettingsMetrics.outerPadding)
-            .padding(.bottom, SettingsMetrics.sectionSpacing)
-
-            Divider()
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
 
             selectedTab
+                .padding(.top, 48)
+
+            Picker("", selection: $selectedPane) {
+                ForEach(Pane.allCases, id: \.self) { pane in
+                    Text(pane.title).tag(pane)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 264)
+            .padding(.top, -18)
         }
+        .padding(SettingsMetrics.windowPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             loadHotkeyEditor(from: settingsStore.settings.hotkeyShortcut)
@@ -518,7 +516,7 @@ private struct SettingsPane<Content: View>: View {
                 content
             }
             .padding(.horizontal, SettingsMetrics.outerPadding)
-            .padding(.top, SettingsMetrics.outerPadding)
+            .padding(.top, 0)
             .padding(.bottom, SettingsMetrics.outerPadding)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
@@ -587,6 +585,7 @@ private struct SettingsFootnote: View {
 }
 
 private enum SettingsMetrics {
+    static let windowPadding: CGFloat = 12
     static let outerPadding: CGFloat = 16
     static let labelWidth: CGFloat = 116
     static let rowSpacing: CGFloat = 8
