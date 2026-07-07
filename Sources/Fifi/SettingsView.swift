@@ -34,7 +34,9 @@ struct SettingsView: View {
     private let onPaneChanged: (Pane) -> Void
 
     @State private var selectedPane: Pane = .general
-    @State private var hotkeyDraft = ""
+    @State private var firstHotkeyModifier: HotkeyModifier = .command
+    @State private var secondHotkeyModifier: HotkeyModifier = .shift
+    @State private var hotkeyKey = "V"
     @State private var hotkeyError: String?
     @State private var usageCount = 0
     @State private var usageBytes = 0
@@ -75,7 +77,7 @@ struct SettingsView: View {
                 .tag(Pane.ignore)
         }
         .onAppear {
-            hotkeyDraft = settingsStore.settings.hotkeyShortcut
+            loadHotkeyEditor(from: settingsStore.settings.hotkeyShortcut)
             refreshUsage()
             reloadIgnoreData()
             refreshRunningApps()
@@ -92,12 +94,31 @@ struct SettingsView: View {
         SettingsPane {
             SettingsSection("Shortcut") {
                 SettingsRow("Global shortcut") {
-                    TextField("cmd+shift+v", text: $hotkeyDraft)
+                    Picker("", selection: $firstHotkeyModifier) {
+                        ForEach(HotkeyModifier.allCases) { modifier in
+                            Text(modifier.title).tag(modifier)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 116)
+
+                    Picker("", selection: $secondHotkeyModifier) {
+                        ForEach(HotkeyModifier.allCases) { modifier in
+                            Text(modifier.title).tag(modifier)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 116)
+
+                    TextField("V", text: $hotkeyKey)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 180)
-                        .onSubmit(commitHotkey)
+                        .multilineTextAlignment(.center)
+                        .frame(width: 56)
                 }
-                SettingsFootnote(hotkeyError ?? "Press Return to save. Use cmd, shift, option, or ctrl with a key.")
+                .onChange(of: firstHotkeyModifier) { _ in commitHotkeyEditor() }
+                .onChange(of: secondHotkeyModifier) { _ in commitHotkeyEditor() }
+                .onChange(of: hotkeyKey) { _ in commitHotkeyEditor() }
+                SettingsFootnote(hotkeyError ?? "Choose two modifier keys, then type one letter or number.")
                     .foregroundStyle(hotkeyError == nil ? Color.secondary : Color.red)
             }
 
@@ -118,19 +139,66 @@ struct SettingsView: View {
         }
     }
 
-    private func commitHotkey() {
-        let normalized = hotkeyDraft
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        guard HotKeyCenter.isShortcutSupported(normalized) else {
-            hotkeyError = "Unsupported shortcut. Include cmd, option, ctrl, or shift plus a key."
+    private func commitHotkeyEditor() {
+        let normalizedKey = normalizeHotkeyKey(hotkeyKey)
+        if hotkeyKey != normalizedKey {
+            hotkeyKey = normalizedKey
             return
         }
-        hotkeyDraft = normalized
+        guard firstHotkeyModifier != secondHotkeyModifier else {
+            hotkeyError = "Choose two different modifier keys."
+            return
+        }
+        guard !normalizedKey.isEmpty else {
+            hotkeyError = "Type one letter or number for the shortcut key."
+            return
+        }
+        let shortcut = "\(firstHotkeyModifier.token)+\(secondHotkeyModifier.token)+\(normalizedKey.lowercased())"
+        guard HotKeyCenter.isShortcutSupported(shortcut) else {
+            hotkeyError = "Unsupported shortcut."
+            return
+        }
         hotkeyError = nil
         settingsStore.update { settings in
-            settings.hotkeyShortcut = normalized
+            settings.hotkeyShortcut = shortcut
         }
+    }
+
+    private func loadHotkeyEditor(from shortcut: String) {
+        let parsed = parseHotkeyShortcut(shortcut)
+            ?? parseHotkeyShortcut(AppSettings().hotkeyShortcut)
+            ?? (.command, .shift, "V")
+        firstHotkeyModifier = parsed.first
+        secondHotkeyModifier = parsed.second
+        hotkeyKey = parsed.key
+        hotkeyError = nil
+    }
+
+    private func parseHotkeyShortcut(_ shortcut: String) -> (first: HotkeyModifier, second: HotkeyModifier, key: String)? {
+        let tokens = shortcut
+            .replacingOccurrences(of: "⌘", with: "cmd+")
+            .replacingOccurrences(of: "⇧", with: "shift+")
+            .replacingOccurrences(of: "⌥", with: "option+")
+            .replacingOccurrences(of: "⌃", with: "control+")
+            .split(separator: "+")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+        guard tokens.count >= 3 else { return nil }
+
+        let modifiers = tokens.dropLast().compactMap(HotkeyModifier.init(token:))
+        let uniqueModifiers = modifiers.reduce(into: [HotkeyModifier]()) { result, modifier in
+            if !result.contains(modifier) {
+                result.append(modifier)
+            }
+        }
+        let key = normalizeHotkeyKey(String(tokens.last ?? ""))
+        guard uniqueModifiers.count >= 2, !key.isEmpty else { return nil }
+        return (uniqueModifiers[0], uniqueModifiers[1], key)
+    }
+
+    private func normalizeHotkeyKey(_ rawValue: String) -> String {
+        let allowedCharacters = rawValue.uppercased().filter { $0.isLetter || $0.isNumber }
+        return String(allowedCharacters.prefix(1))
     }
 
     // MARK: - Storage
@@ -482,6 +550,48 @@ private struct SettingsFootnote: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.leading, 144)
+    }
+}
+
+private enum HotkeyModifier: String, CaseIterable, Identifiable {
+    case command
+    case shift
+    case option
+    case control
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .command: return "Command"
+        case .shift: return "Shift"
+        case .option: return "Option"
+        case .control: return "Control"
+        }
+    }
+
+    var token: String {
+        switch self {
+        case .command: return "cmd"
+        case .shift: return "shift"
+        case .option: return "option"
+        case .control: return "control"
+        }
+    }
+
+    init?(token: String) {
+        switch token {
+        case "cmd", "command":
+            self = .command
+        case "shift":
+            self = .shift
+        case "option", "alt":
+            self = .option
+        case "ctrl", "control":
+            self = .control
+        default:
+            return nil
+        }
     }
 }
 
