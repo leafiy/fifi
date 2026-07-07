@@ -8,7 +8,9 @@ import UniformTypeIdentifiers
     private let historyStore: HistoryStore
     private let blobStore: BlobStore
     private let ignoreRulesStore: IgnoreRulesStore
+    private let appPrivacyStore: AppPrivacyStore
     private let settingsStore: SettingsStore
+    private let memorySink: (ClipboardItem) -> Void
     private let storeQueue = DispatchQueue(label: "com.leafiy.fifi.clipboard-store", qos: .utility)
 
     // NSPasteboard has no change notifications; a 150 ms changeCount poll is
@@ -18,14 +20,24 @@ import UniformTypeIdentifiers
     private var timer: Timer?
     private var lastChangeCount = NSPasteboard.general.changeCount
     private var evaluator = IgnoreRuleEvaluator(ignoredBundleIDs: [], regexRules: [])
+    private var appPrivacyModes: [String: AppPrivacyMode] = [:]
     private var selfWriteChangeCounts = Set<Int>()
     private var selfWriteObserver: NSObjectProtocol?
 
-    init(historyStore: HistoryStore, blobStore: BlobStore, ignoreRulesStore: IgnoreRulesStore, settingsStore: SettingsStore) {
+    init(
+        historyStore: HistoryStore,
+        blobStore: BlobStore,
+        ignoreRulesStore: IgnoreRulesStore,
+        appPrivacyStore: AppPrivacyStore,
+        settingsStore: SettingsStore,
+        memorySink: @escaping (ClipboardItem) -> Void
+    ) {
         self.historyStore = historyStore
         self.blobStore = blobStore
         self.ignoreRulesStore = ignoreRulesStore
+        self.appPrivacyStore = appPrivacyStore
         self.settingsStore = settingsStore
+        self.memorySink = memorySink
         reloadIgnoreRules()
         selfWriteObserver = NotificationCenter.default.addObserver(
             forName: .fifiPasteboardDidSelfWrite, object: nil, queue: .main
@@ -66,6 +78,12 @@ import UniformTypeIdentifiers
             )
         } catch {
             NSLog("Fifi failed to reload ignore rules: %@", String(describing: error))
+        }
+        do {
+            let rules = try appPrivacyStore.rules()
+            appPrivacyModes = Dictionary(uniqueKeysWithValues: rules.map { ($0.bundleID, $0.mode) })
+        } catch {
+            NSLog("Fifi failed to reload app privacy rules: %@", String(describing: error))
         }
     }
 
@@ -142,22 +160,98 @@ import UniformTypeIdentifiers
             return
         }
 
-        persist(classified: classified, candidate: candidate)
+        route(classified: classified, candidate: candidate)
+    }
+
+    /// Applies private mode, per-app privacy rules, and sensitive-content
+    /// detection, then either buffers in memory, drops, or persists.
+    private func route(classified: ClassifiedCapture, candidate: CaptureCandidate) {
+        let privacy = settingsStore.settings.privacy
+        let appMode = candidate.sourceAppBundleID.flatMap { appPrivacyModes[$0] }
+
+        // Memory-only (private mode or per-app rule): never touches disk.
+        if privacy.privateMode || appMode == .memoryOnly {
+            guard classified.type != .image else {
+                Self.log("memory-only mode: image capture skipped (no disk buffer)")
+                return
+            }
+            let item = memoryItem(from: classified, candidate: candidate)
+            memorySink(item)
+            Self.log("buffered \(classified.type.rawValue) in memory (private)")
+            NotificationCenter.default.post(name: .fifiHistoryDidChange, object: nil)
+            return
+        }
+
+        // Sensitive content: per-app rule forces it; otherwise detect in text.
+        let detected: Bool
+        if appMode == .sensitive {
+            detected = true
+        } else {
+            let text = candidate.plainText ?? candidate.urlString ?? ""
+            detected = !text.isEmpty
+                && SensitiveContentDetector.detect(in: text, options: privacy.detectionOptions) != nil
+        }
+
+        if detected {
+            switch privacy.handling {
+            case .ignore:
+                Self.log("sensitive content dropped (not recorded)")
+                return
+            case .autoDelete:
+                let seconds = max(1, privacy.autoDeleteSeconds)
+                persist(
+                    classified: classified,
+                    candidate: candidate,
+                    isSensitive: true,
+                    expiresAt: Date().addingTimeInterval(TimeInterval(seconds))
+                )
+                return
+            }
+        }
+
+        persist(classified: classified, candidate: candidate, isSensitive: false, expiresAt: nil)
+    }
+
+    private func memoryItem(from classified: ClassifiedCapture, candidate: CaptureCandidate) -> ClipboardItem {
+        let now = Date()
+        return ClipboardItem(
+            id: 0,
+            contentHash: ContentHash.sha256(classified.hashInput),
+            type: classified.type,
+            previewText: classified.previewText,
+            contentText: classified.contentText ?? classified.largeText ?? candidate.plainText ?? candidate.urlString,
+            sourceAppName: candidate.sourceAppName,
+            sourceAppBundleID: candidate.sourceAppBundleID,
+            createdAt: now,
+            updatedAt: now,
+            isSensitive: true,
+            byteSize: classified.byteSize,
+            fileReference: classified.fileReference,
+            metadataJSON: classified.metadataJSON
+        )
     }
 
     private func shouldSkip(types: [NSPasteboard.PasteboardType]) -> Bool {
-        let skippedTypes: Set<String> = [
-            "org.nspasteboard.TransientType",
-            "org.nspasteboard.ConcealedType"
-        ]
-        return types.contains { skippedTypes.contains($0.rawValue) }
+        if types.contains(where: { $0.rawValue == "org.nspasteboard.TransientType" }) {
+            return true
+        }
+        if settingsStore.settings.privacy.skipConcealed,
+           types.contains(where: { $0.rawValue == "org.nspasteboard.ConcealedType" }) {
+            return true
+        }
+        return false
     }
 
     private func consumeSelfWrite(changeCount: Int) -> Bool {
         selfWriteChangeCounts.remove(changeCount) != nil
     }
 
-    private func persist(classified: ClassifiedCapture, candidate: CaptureCandidate) {
+    private func persist(
+        classified: ClassifiedCapture,
+        candidate: CaptureCandidate,
+        isSensitive: Bool,
+        expiresAt: Date?
+    ) {
         let historyStore = historyStore
         let blobStore = blobStore
 
@@ -196,6 +290,8 @@ import UniformTypeIdentifiers
                     searchText: classified.searchText,
                     sourceAppName: candidate.sourceAppName,
                     sourceAppBundleID: candidate.sourceAppBundleID,
+                    isSensitive: isSensitive,
+                    expiresAt: expiresAt,
                     byteSize: classified.byteSize,
                     blobPath: blobPath,
                     thumbnailPath: thumbnailPath,

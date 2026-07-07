@@ -10,6 +10,13 @@ final class HistoryService {
     private let settingsProvider: () -> AppSettings
     private let cleanupQueue = DispatchQueue(label: "com.leafiy.fifi.cleanup", qos: .utility)
 
+    // In-memory ring buffer for private-mode / memory-only captures. These are
+    // never written to disk; they carry synthetic negative ids so the rest of
+    // the app can tell them apart from persisted rows.
+    private var memory: [ClipboardItem] = []
+    private var nextMemoryID: Int64 = -1
+    private let memoryLimit = 50
+
     init(
         historyStore: HistoryStore,
         databasePath: String,
@@ -22,22 +29,30 @@ final class HistoryService {
         self.settingsProvider = settingsProvider
     }
 
+    static func isMemoryItem(_ id: Int64) -> Bool { id < 0 }
+
     // MARK: - Reads
 
-    func recent(limit: Int, offset: Int) -> [ClipboardItem] {
+    func items(matching query: HistoryQuery, limit: Int, offset: Int) -> [ClipboardItem] {
         do {
-            return try freshHistoryStore().recentItems(limit: limit, offset: offset)
+            return try freshHistoryStore().items(matching: query, limit: limit, offset: offset)
         } catch {
-            NSLog("Failed to load recent history: \(String(describing: error))")
+            NSLog("Failed to load filtered history: \(String(describing: error))")
             return []
         }
     }
 
-    func search(_ query: String, limit: Int, offset: Int) -> [ClipboardItem] {
+    func memoryItems(matching query: HistoryQuery) -> [ClipboardItem] {
+        memory.filter { matches($0, query: query) }
+    }
+
+    var hasMemoryItems: Bool { !memory.isEmpty }
+
+    func distinctSourceApps() -> [SourceAppSummary] {
         do {
-            return try freshHistoryStore().search(query, limit: limit, offset: offset)
+            return try freshHistoryStore().distinctSourceApps()
         } catch {
-            NSLog("Failed to search history: \(String(describing: error))")
+            NSLog("Failed to load source apps: \(String(describing: error))")
             return []
         }
     }
@@ -51,10 +66,32 @@ final class HistoryService {
         }
     }
 
+    // MARK: - Memory captures
+
+    @discardableResult
+    func addMemoryItem(_ item: ClipboardItem) -> ClipboardItem {
+        var stored = item
+        stored.id = nextMemoryID
+        nextMemoryID -= 1
+        memory.insert(stored, at: 0)
+        if memory.count > memoryLimit {
+            memory.removeLast(memory.count - memoryLimit)
+        }
+        return stored
+    }
+
+    func clearMemory() {
+        memory.removeAll(keepingCapacity: false)
+    }
+
     // MARK: - Mutations
 
     @discardableResult
     func delete(item: ClipboardItem) -> Bool {
+        if Self.isMemoryItem(item.id) {
+            memory.removeAll { $0.id == item.id }
+            return true
+        }
         do {
             guard let deleted = try freshHistoryStore().delete(id: item.id) else {
                 NSLog("History item \(item.id) was not found during delete")
@@ -69,6 +106,7 @@ final class HistoryService {
     }
 
     func togglePin(item: ClipboardItem) {
+        guard !Self.isMemoryItem(item.id) else { return }
         do {
             try freshHistoryStore().setPinned(id: item.id, !item.isPinned)
         } catch {
@@ -77,6 +115,7 @@ final class HistoryService {
     }
 
     func clearAll(keepPinned: Bool = false) {
+        clearMemory()
         do {
             let deleted = try historyStore.clearAll(keepPinned: keepPinned)
             deleted.forEach(deleteBlobs)
@@ -86,6 +125,7 @@ final class HistoryService {
     }
 
     func clear(type: ClipItemType) {
+        memory.removeAll { $0.type == type }
         do {
             let deleted = try historyStore.clear(type: type)
             deleted.forEach(deleteBlobs)
@@ -95,6 +135,7 @@ final class HistoryService {
     }
 
     func markUsed(id: Int64) {
+        guard !Self.isMemoryItem(id) else { return }
         do {
             try freshHistoryStore().markUsed(id: id)
         } catch {
@@ -118,6 +159,95 @@ final class HistoryService {
                 NSLog("History cleanup failed: \(String(describing: error))")
             }
         }
+    }
+
+    /// Deletes entries whose auto-delete deadline has passed. Runs on the main
+    /// connection; cheap because it is indexed on `expires_at`.
+    @discardableResult
+    func deleteExpired() -> Bool {
+        do {
+            let deleted = try historyStore.deleteExpired()
+            deleted.forEach(deleteBlobs)
+            return !deleted.isEmpty
+        } catch {
+            NSLog("Expiry sweep failed: \(String(describing: error))")
+            return false
+        }
+    }
+
+    // MARK: - Backup / diagnostics
+
+    /// Online backup of the database plus a copy of the blob payload
+    /// directories into `folder`. Safe to run while the app is live.
+    func exportBackup(to folder: URL) throws {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+        let database = try Database(path: databasePath)
+        defer { database.close() }
+        try database.backup(toPath: folder.appendingPathComponent("fifi.sqlite3").path)
+        for source in blobStore.payloadDirectories {
+            let destination = folder.appendingPathComponent(source.lastPathComponent, isDirectory: true)
+            try? fileManager.removeItem(at: destination)
+            if fileManager.fileExists(atPath: source.path) {
+                try fileManager.copyItem(at: source, to: destination)
+            }
+        }
+    }
+
+    func diagnosticsReport(appVersion: String) -> DiagnosticsReport {
+        guard let database = try? Database(path: databasePath),
+              let store = try? HistoryStore(database: database) else {
+            return DiagnosticsReport(
+                generatedAt: Date(),
+                appVersion: appVersion,
+                schemaVersion: -1,
+                itemCount: -1,
+                countsByType: [:],
+                totalContentBytes: -1,
+                databaseSizeBytes: 0,
+                blobStoreSizeBytes: blobStore.totalBytes(),
+                integrityIssues: ["database could not be opened"],
+                settingsJSON: "{}"
+            )
+        }
+        defer { database.close() }
+        return Diagnostics.collect(
+            database: database,
+            historyStore: store,
+            blobStore: blobStore,
+            settings: settingsProvider(),
+            appVersion: appVersion,
+            databasePath: databasePath
+        )
+    }
+
+    // MARK: - Memory matching
+
+    private func matches(_ item: ClipboardItem, query: HistoryQuery) -> Bool {
+        let filter = query.filter
+        if !filter.types.isEmpty, !filter.types.contains(item.type) { return false }
+        if !filter.sourceAppBundleIDs.isEmpty {
+            guard let bundleID = item.sourceAppBundleID, filter.sourceAppBundleIDs.contains(bundleID) else {
+                return false
+            }
+        }
+        if let since = filter.since, item.createdAt < since { return false }
+        if let until = filter.until, item.createdAt > until { return false }
+        if filter.pinnedOnly { return false } // memory items can't be pinned
+        if filter.minUseCount > 0 { return false }
+
+        let text = query.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return true }
+        let haystack = [item.previewText, item.contentText ?? "", item.fileReference ?? "", item.sourceAppName ?? ""]
+            .joined(separator: "\n")
+        if query.isRegex {
+            guard let expression = try? NSRegularExpression(pattern: text, options: [.caseInsensitive]) else {
+                return false
+            }
+            let range = NSRange(haystack.startIndex..<haystack.endIndex, in: haystack)
+            return expression.firstMatch(in: haystack, options: [], range: range) != nil
+        }
+        return haystack.range(of: text, options: .caseInsensitive) != nil
     }
 
     // MARK: - Blobs

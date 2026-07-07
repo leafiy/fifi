@@ -6,7 +6,7 @@ public final class HistoryStore: @unchecked Sendable {
 
     public init(database: Database) throws {
         self.database = database
-        try createSchema()
+        try SchemaMigrator.migrate(database)
     }
 
     @discardableResult
@@ -17,13 +17,16 @@ public final class HistoryStore: @unchecked Sendable {
                 try database.run(
                     """
                     UPDATE clipboard_items
-                    SET updated_at = ?, use_count = use_count + 1, source_app_name = ?, source_app_bundle_id = ?
+                    SET updated_at = ?, use_count = use_count + 1, source_app_name = ?, source_app_bundle_id = ?,
+                        is_sensitive = ?, expires_at = ?
                     WHERE id = ?
                     """,
                     [
                         .real(now),
                         optionalText(item.sourceAppName),
                         optionalText(item.sourceAppBundleID),
+                        .integer(item.isSensitive ? 1 : 0),
+                        item.expiresAt.map { SQLValue.real($0.timeIntervalSince1970) } ?? .null,
                         .integer(existing.id)
                     ]
                 )
@@ -36,9 +39,9 @@ public final class HistoryStore: @unchecked Sendable {
                 """
                 INSERT INTO clipboard_items (
                     content_hash, type, preview_text, content_text, source_app_name, source_app_bundle_id,
-                    created_at, updated_at, last_used_at, use_count, is_pinned, byte_size, blob_path,
-                    thumbnail_path, file_reference, metadata_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at, updated_at, last_used_at, use_count, is_pinned, is_sensitive, expires_at,
+                    byte_size, blob_path, thumbnail_path, file_reference, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     .text(item.contentHash),
@@ -52,6 +55,8 @@ public final class HistoryStore: @unchecked Sendable {
                     .null,
                     .integer(0),
                     .integer(0),
+                    .integer(item.isSensitive ? 1 : 0),
+                    item.expiresAt.map { SQLValue.real($0.timeIntervalSince1970) } ?? .null,
                     .integer(Int64(item.byteSize)),
                     optionalText(item.blobPath),
                     optionalText(item.thumbnailPath),
@@ -180,6 +185,12 @@ public final class HistoryStore: @unchecked Sendable {
         try database.transaction {
             var removed: [ClipboardItem] = []
 
+            // Expired sensitive entries are removed unconditionally, pins included.
+            removed.append(contentsOf: try removeItems(
+                matching: "expires_at IS NOT NULL AND expires_at <= ?",
+                bindings: [.real(Date().timeIntervalSince1970)]
+            ))
+
             if let days = policy.maxAgeDays {
                 let cutoff = Date().timeIntervalSince1970 - Double(max(0, days)) * 86_400
                 removed.append(contentsOf: try removeItems(
@@ -241,55 +252,137 @@ public final class HistoryStore: @unchecked Sendable {
         }
     }
 
-    // MARK: - Schema
-
-    private func createSchema() throws {
+    /// Deletes entries whose auto-delete deadline has passed, pins included.
+    public func deleteExpired(reference: Date = Date()) throws -> [ClipboardItem] {
         try database.transaction {
-            try database.execute(
-                """
-                CREATE TABLE IF NOT EXISTS clipboard_items (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  content_hash TEXT NOT NULL UNIQUE,
-                  type TEXT NOT NULL,
-                  preview_text TEXT NOT NULL DEFAULT '',
-                  content_text TEXT,
-                  source_app_name TEXT,
-                  source_app_bundle_id TEXT,
-                  created_at REAL NOT NULL,
-                  updated_at REAL NOT NULL,
-                  last_used_at REAL,
-                  use_count INTEGER NOT NULL DEFAULT 0,
-                  is_pinned INTEGER NOT NULL DEFAULT 0,
-                  byte_size INTEGER NOT NULL DEFAULT 0,
-                  blob_path TEXT,
-                  thumbnail_path TEXT,
-                  file_reference TEXT,
-                  metadata_json TEXT
-                );
-                """
-            )
-            try database.execute(
-                "CREATE INDEX IF NOT EXISTS idx_items_order ON clipboard_items(is_pinned DESC, updated_at DESC);"
-            )
-            try database.execute("CREATE INDEX IF NOT EXISTS idx_items_type ON clipboard_items(type);")
-            try database.execute(
-                "CREATE VIRTUAL TABLE IF NOT EXISTS clipboard_items_fts USING fts5(content, tokenize='unicode61');"
-            )
-            try database.execute(
-                """
-                CREATE TABLE IF NOT EXISTS ignore_apps (
-                  bundle_id TEXT PRIMARY KEY, app_name TEXT
-                );
-                """
-            )
-            try database.execute(
-                """
-                CREATE TABLE IF NOT EXISTS ignore_regex_rules (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT, pattern TEXT NOT NULL, label TEXT, enabled INTEGER NOT NULL DEFAULT 1
-                );
-                """
+            try removeItems(
+                matching: "expires_at IS NOT NULL AND expires_at <= ?",
+                bindings: [.real(reference.timeIntervalSince1970)]
             )
         }
+    }
+
+    // MARK: - Filtered queries
+
+    public func items(matching query: HistoryQuery, limit: Int, offset: Int) throws -> [ClipboardItem] {
+        var clauses: [String] = []
+        var bindings: [SQLValue] = []
+        var joinsFTS = false
+
+        let text = query.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty {
+            if query.isRegex {
+                joinsFTS = true
+                clauses.append("f.content REGEXP ?")
+                bindings.append(.text(text))
+            } else {
+                let match = Self.sanitizedFTSQuery(text)
+                if !match.isEmpty {
+                    joinsFTS = true
+                    clauses.append("clipboard_items_fts MATCH ?")
+                    bindings.append(.text(match))
+                }
+            }
+        }
+
+        let filter = query.filter
+        if !filter.types.isEmpty {
+            let placeholders = Array(repeating: "?", count: filter.types.count).joined(separator: ", ")
+            clauses.append("i.type IN (\(placeholders))")
+            bindings.append(contentsOf: filter.types.sorted { $0.rawValue < $1.rawValue }.map { .text($0.rawValue) })
+        }
+        if !filter.sourceAppBundleIDs.isEmpty {
+            let placeholders = Array(repeating: "?", count: filter.sourceAppBundleIDs.count).joined(separator: ", ")
+            clauses.append("i.source_app_bundle_id IN (\(placeholders))")
+            bindings.append(contentsOf: filter.sourceAppBundleIDs.sorted().map(SQLValue.text))
+        }
+        if let since = filter.since {
+            clauses.append("i.created_at >= ?")
+            bindings.append(.real(since.timeIntervalSince1970))
+        }
+        if let until = filter.until {
+            clauses.append("i.created_at <= ?")
+            bindings.append(.real(until.timeIntervalSince1970))
+        }
+        if filter.pinnedOnly {
+            clauses.append("i.is_pinned = 1")
+        }
+        if filter.minUseCount > 0 {
+            clauses.append("i.use_count >= ?")
+            bindings.append(.integer(Int64(filter.minUseCount)))
+        }
+
+        let join = joinsFTS ? "JOIN clipboard_items_fts f ON f.rowid = i.id" : ""
+        let whereClause = clauses.isEmpty ? "" : "WHERE " + clauses.joined(separator: " AND ")
+        let orderClause: String
+        switch query.sort {
+        case .recency:
+            orderClause = "ORDER BY i.is_pinned DESC, i.updated_at DESC"
+        case .mostUsed:
+            orderClause = "ORDER BY i.use_count DESC, COALESCE(i.last_used_at, 0) DESC, i.updated_at DESC"
+        }
+
+        // Fuzzy ranking re-orders a bounded candidate pool client-side; the
+        // pool must cover the requested window plus headroom for re-ranking.
+        let usesFuzzy = query.fuzzyRanking && !query.isRegex && !text.isEmpty && joinsFTS
+        let fetchLimit = usesFuzzy ? max(limit + offset, 400) : max(0, limit)
+        let fetchOffset = usesFuzzy ? 0 : max(0, offset)
+
+        let rows = try database.query(
+            """
+            SELECT \(Self.itemColumns(prefix: "i."))
+            FROM clipboard_items i
+            \(join)
+            \(whereClause)
+            \(orderClause)
+            LIMIT ? OFFSET ?
+            """,
+            bindings + [.integer(Int64(fetchLimit)), .integer(Int64(fetchOffset))]
+        )
+        var items = rows.map(item(from:))
+
+        if usesFuzzy {
+            let scored = items.enumerated().map { pair -> (offset: Int, item: ClipboardItem, score: Double) in
+                let score = FuzzyScorer.score(query: text, candidate: pair.element.previewText) ?? -Double.infinity
+                return (pair.offset, pair.element, score)
+            }
+            items = scored.sorted { lhs, rhs in
+                if lhs.score != rhs.score { return lhs.score > rhs.score }
+                return lhs.offset < rhs.offset
+            }.map(\.item)
+            let window = items.dropFirst(max(0, offset)).prefix(max(0, limit))
+            items = Array(window)
+        }
+
+        return items
+    }
+
+    public func distinctSourceApps() throws -> [SourceAppSummary] {
+        try database.query(
+            """
+            SELECT source_app_bundle_id AS bundle_id, MAX(source_app_name) AS app_name, COUNT(*) AS n
+            FROM clipboard_items
+            WHERE source_app_bundle_id IS NOT NULL AND source_app_bundle_id != ''
+            GROUP BY source_app_bundle_id
+            ORDER BY n DESC
+            """,
+            []
+        ).compactMap { row in
+            guard let bundleID = string(row, "bundle_id") else { return nil }
+            return SourceAppSummary(bundleID: bundleID, appName: string(row, "app_name"), itemCount: int(row, "n"))
+        }
+    }
+
+    public func countsByType() throws -> [ClipItemType: Int] {
+        var counts: [ClipItemType: Int] = [:]
+        let rows = try database.query(
+            "SELECT type, COUNT(*) AS n FROM clipboard_items GROUP BY type", []
+        )
+        for row in rows {
+            guard let raw = string(row, "type"), let type = ClipItemType(rawValue: raw) else { continue }
+            counts[type] = int(row, "n")
+        }
+        return counts
     }
 
     // MARK: - Queries
@@ -298,7 +391,8 @@ public final class HistoryStore: @unchecked Sendable {
         [
             "id", "content_hash", "type", "preview_text", "content_text", "source_app_name",
             "source_app_bundle_id", "created_at", "updated_at", "last_used_at", "use_count",
-            "is_pinned", "byte_size", "blob_path", "thumbnail_path", "file_reference", "metadata_json"
+            "is_pinned", "is_sensitive", "expires_at", "byte_size", "blob_path", "thumbnail_path",
+            "file_reference", "metadata_json"
         ].map { "\(prefix)\($0) AS \($0)" }.joined(separator: ", ")
     }
 
@@ -360,6 +454,8 @@ public final class HistoryStore: @unchecked Sendable {
             lastUsedAt: optionalDate(row, "last_used_at"),
             useCount: int(row, "use_count"),
             isPinned: int(row, "is_pinned") != 0,
+            isSensitive: int(row, "is_sensitive") != 0,
+            expiresAt: optionalDate(row, "expires_at"),
             byteSize: int(row, "byte_size"),
             blobPath: string(row, "blob_path"),
             thumbnailPath: string(row, "thumbnail_path"),
@@ -455,6 +551,72 @@ public final class HistoryStore: @unchecked Sendable {
         default:
             return false
         }
+    }
+}
+
+public enum HistorySortOrder: String, CaseIterable, Sendable, Codable {
+    case recency, mostUsed = "most_used"
+}
+
+public struct HistoryFilter: Sendable, Equatable {
+    /// Empty means all types.
+    public var types: Set<ClipItemType>
+    /// Empty means all source apps.
+    public var sourceAppBundleIDs: Set<String>
+    public var since: Date?
+    public var until: Date?
+    public var pinnedOnly: Bool
+    public var minUseCount: Int
+
+    public init(
+        types: Set<ClipItemType> = [],
+        sourceAppBundleIDs: Set<String> = [],
+        since: Date? = nil,
+        until: Date? = nil,
+        pinnedOnly: Bool = false,
+        minUseCount: Int = 0
+    ) {
+        self.types = types
+        self.sourceAppBundleIDs = sourceAppBundleIDs
+        self.since = since
+        self.until = until
+        self.pinnedOnly = pinnedOnly
+        self.minUseCount = minUseCount
+    }
+}
+
+public struct HistoryQuery: Sendable, Equatable {
+    public var text: String
+    public var isRegex: Bool
+    public var filter: HistoryFilter
+    public var sort: HistorySortOrder
+    public var fuzzyRanking: Bool
+
+    public init(
+        text: String = "",
+        isRegex: Bool = false,
+        filter: HistoryFilter = HistoryFilter(),
+        sort: HistorySortOrder = .recency,
+        fuzzyRanking: Bool = false
+    ) {
+        self.text = text
+        self.isRegex = isRegex
+        self.filter = filter
+        self.sort = sort
+        self.fuzzyRanking = fuzzyRanking
+    }
+}
+
+public struct SourceAppSummary: Sendable, Equatable, Identifiable {
+    public var id: String { bundleID }
+    public let bundleID: String
+    public let appName: String?
+    public let itemCount: Int
+
+    public init(bundleID: String, appName: String?, itemCount: Int) {
+        self.bundleID = bundleID
+        self.appName = appName
+        self.itemCount = itemCount
     }
 }
 

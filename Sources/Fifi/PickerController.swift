@@ -58,8 +58,13 @@ final class PickerController {
 
         let loader = ThumbnailLoader(blobStore: blobStore)
         let contentView = PickerHostingView(
-            rootView: PickerView(viewModel: viewModel, thumbnailLoader: loader)
-                .ignoresSafeArea()
+            rootView: PickerView(
+                viewModel: viewModel,
+                settingsStore: settingsStore,
+                thumbnailLoader: loader,
+                blobStore: blobStore
+            )
+            .ignoresSafeArea()
         )
         contentView.wantsLayer = true
         contentView.layer?.cornerRadius = 12
@@ -80,6 +85,11 @@ final class PickerController {
         viewModel.onCopyToClipboard = { [weak self] item in
             Task { @MainActor in
                 self?.copyToClipboard(item: item, hideAfterCopy: false)
+            }
+        }
+        viewModel.onQuickAction = { [weak self] action, item in
+            Task { @MainActor in
+                self?.performQuickAction(action, item: item)
             }
         }
 
@@ -106,6 +116,8 @@ final class PickerController {
         guard ProcessInfo.processInfo.systemUptime - lastHideTime > 0.2 else { return }
         NSLog("Fifi[picker] show()")
         captureCurrentPasteboard()
+        applySettingsToViewModel()
+        resizePanel()
         positionPanel()
         viewModel.reload()
         installKeyMonitor()
@@ -152,6 +164,50 @@ final class PickerController {
         historyService.markUsed(id: item.id)
         if hideAfterCopy {
             hide()
+        }
+    }
+
+    private func applySettingsToViewModel() {
+        let settings = settingsStore.settings
+        viewModel.sortOrder = settings.sortOrder
+        viewModel.fuzzyRanking = settings.fuzzyRanking
+        viewModel.numberShortcuts = settings.numberShortcuts
+    }
+
+    private func resizePanel() {
+        let settings = settingsStore.settings
+        let width = CGFloat(settings.pickerWidth) + (settings.showPreviewPanel ? PickerView.previewPanelWidth : 0)
+        let height = CGFloat(settings.pickerHeight)
+        guard panel.frame.width != width || panel.frame.height != height else { return }
+        panel.setContentSize(NSSize(width: width, height: height))
+    }
+
+    private func performQuickAction(_ action: PickerQuickAction, item: ClipboardItem) {
+        switch action {
+        case .copyPlainText:
+            PasteboardWriter.copyPlainText(item, blobStore: blobStore)
+            historyService.markUsed(id: item.id)
+        case .copyColorHex:
+            PasteboardWriter.copyColor(item, format: .hex, blobStore: blobStore)
+            historyService.markUsed(id: item.id)
+        case .copyColorRGB:
+            PasteboardWriter.copyColor(item, format: .rgb, blobStore: blobStore)
+            historyService.markUsed(id: item.id)
+        case .copyColorHSL:
+            PasteboardWriter.copyColor(item, format: .hsl, blobStore: blobStore)
+            historyService.markUsed(id: item.id)
+        case .copyCleanURL:
+            PasteboardWriter.copyCleanedURL(item, blobStore: blobStore)
+            historyService.markUsed(id: item.id)
+        case .openURL:
+            PasteboardWriter.openURL(item, blobStore: blobStore)
+            hide()
+        case .revealInFinder:
+            PasteboardWriter.revealInFinder(item)
+            hide()
+        case .quickLook:
+            let urls = PasteboardWriter.filePaths(for: item).map { URL(fileURLWithPath: $0) }
+            QuickLookController.shared.preview(urls: urls)
         }
     }
 
@@ -251,7 +307,8 @@ final class PickerController {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let keyCode = Int(event.keyCode)
 
-        if modifiers == .command, let index = Self.shortcutIndex(for: keyCode) {
+        if settingsStore.settings.numberShortcuts, modifiers == .command,
+           let index = Self.shortcutIndex(for: keyCode) {
             viewModel.copyShortcutItem(at: index)
             hide()
             return true
@@ -263,6 +320,12 @@ final class PickerController {
         }
         if modifiers.contains(.command), event.charactersIgnoringModifiers?.lowercased() == "p" {
             viewModel.togglePinSelected()
+            return true
+        }
+        if modifiers.contains(.command), event.charactersIgnoringModifiers?.lowercased() == "y" {
+            if let item = viewModel.selectedItem, item.type == .file {
+                performQuickAction(.quickLook, item: item)
+            }
             return true
         }
 

@@ -5,7 +5,7 @@ public enum ClipItemType: String, CaseIterable, Sendable, Codable {
 }
 
 public struct ClipboardItem: Sendable, Equatable, Identifiable {
-    public let id: Int64
+    public var id: Int64
     public var contentHash: String
     public var type: ClipItemType
     public var previewText: String
@@ -17,6 +17,8 @@ public struct ClipboardItem: Sendable, Equatable, Identifiable {
     public var lastUsedAt: Date?
     public var useCount: Int
     public var isPinned: Bool
+    public var isSensitive: Bool
+    public var expiresAt: Date?
     public var byteSize: Int
     public var blobPath: String?
     public var thumbnailPath: String?
@@ -36,6 +38,8 @@ public struct ClipboardItem: Sendable, Equatable, Identifiable {
         lastUsedAt: Date? = nil,
         useCount: Int = 0,
         isPinned: Bool = false,
+        isSensitive: Bool = false,
+        expiresAt: Date? = nil,
         byteSize: Int = 0,
         blobPath: String? = nil,
         thumbnailPath: String? = nil,
@@ -54,6 +58,8 @@ public struct ClipboardItem: Sendable, Equatable, Identifiable {
         self.lastUsedAt = lastUsedAt
         self.useCount = useCount
         self.isPinned = isPinned
+        self.isSensitive = isSensitive
+        self.expiresAt = expiresAt
         self.byteSize = byteSize
         self.blobPath = blobPath
         self.thumbnailPath = thumbnailPath
@@ -70,6 +76,8 @@ public struct NewClipboardItem: Sendable {
     public var searchText: String
     public var sourceAppName: String?
     public var sourceAppBundleID: String?
+    public var isSensitive: Bool
+    public var expiresAt: Date?
     public var byteSize: Int
     public var blobPath: String?
     public var thumbnailPath: String?
@@ -84,6 +92,8 @@ public struct NewClipboardItem: Sendable {
         searchText: String = "",
         sourceAppName: String? = nil,
         sourceAppBundleID: String? = nil,
+        isSensitive: Bool = false,
+        expiresAt: Date? = nil,
         byteSize: Int = 0,
         blobPath: String? = nil,
         thumbnailPath: String? = nil,
@@ -97,6 +107,8 @@ public struct NewClipboardItem: Sendable {
         self.searchText = searchText
         self.sourceAppName = sourceAppName
         self.sourceAppBundleID = sourceAppBundleID
+        self.isSensitive = isSensitive
+        self.expiresAt = expiresAt
         self.byteSize = byteSize
         self.blobPath = blobPath
         self.thumbnailPath = thumbnailPath

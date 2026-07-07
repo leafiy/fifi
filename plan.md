@@ -253,60 +253,62 @@ Add power-user features, privacy controls, advanced search, better previews, and
 
 ### V2 Advanced Search
 
-- [ ] Add type filters: text, image, URL, color, file, unknown.
-- [ ] Add date filters.
-- [ ] Add source app filters.
-- [ ] Add optional regex search mode.
-- [ ] Add fuzzy search ranking.
-- [ ] Add most-used ranking.
-- [ ] Add recent/frequent/favorites view modes.
+- [x] Add type filters: text, image, URL, color, file, unknown.
+- [x] Add date filters.
+- [x] Add source app filters.
+- [x] Add optional regex search mode.
+- [x] Add fuzzy search ranking.
+- [x] Add most-used ranking.
+- [x] Add recent/frequent/favorites view modes.
 
 ### V2 Enhanced Preview
 
-- [ ] Add larger preview panel.
-- [ ] Add Quick Look support for files.
-- [ ] Add image full preview.
-- [ ] Add copy color as HEX.
-- [ ] Add copy color as RGB.
-- [ ] Add copy color as HSL.
-- [ ] Add copy URL without tracking parameters.
-- [ ] Add copy text as plain text.
-- [ ] Add reveal file in Finder action.
-- [ ] Add open URL action.
+- [x] Add larger preview panel.
+- [x] Add Quick Look support for files.
+- [x] Add image full preview.
+- [x] Add copy color as HEX.
+- [x] Add copy color as RGB.
+- [x] Add copy color as HSL.
+- [x] Add copy URL without tracking parameters.
+- [x] Add copy text as plain text.
+- [x] Add reveal file in Finder action.
+- [x] Add open URL action.
 
 ### V2 Privacy and Security
 
-- [ ] Add built-in sensitive content detection.
-- [ ] Optionally ignore passwords.
-- [ ] Optionally ignore API keys and tokens.
-- [ ] Optionally ignore credit card numbers.
-- [ ] Optionally ignore verification codes.
-- [ ] Add private mode where entries are not written to disk.
-- [ ] Add optional encrypted history storage.
-- [ ] Add auto-delete for sensitive entries.
-- [ ] Add per-app privacy presets.
+- [x] Add built-in sensitive content detection.
+- [x] Optionally ignore passwords.
+- [x] Optionally ignore API keys and tokens.
+- [x] Optionally ignore credit card numbers.
+- [x] Optionally ignore verification codes.
+- [x] Add private mode where entries are not written to disk.
+- [x] Add optional encrypted history storage.
+- [x] Add auto-delete for sensitive entries.
+- [x] Add per-app privacy presets.
 
 ### V2 Workflow Improvements
 
-- [ ] Add quick actions per clipboard type.
-- [ ] Add configurable numeric shortcuts for top results.
-- [ ] Add custom picker width and height.
-- [ ] Add configurable row density.
-- [ ] Add light, dark, and system appearance setting.
-- [ ] Add import/export settings.
-- [ ] Add history backup and restore.
+- [x] Add quick actions per clipboard type.
+- [x] Add configurable numeric shortcuts for top results.
+- [x] Add custom picker width and height.
+- [x] Add configurable row density.
+- [x] Add light, dark, and system appearance setting.
+- [x] Add import/export settings.
+- [x] Add history backup and restore.
 
 ### V2 Smart Organization Without Groups
 
-- [ ] Add favorites view.
-- [ ] Add recent view.
-- [ ] Add frequent view.
-- [ ] Add type-filtered views.
-- [ ] Avoid folder hierarchy.
-- [ ] Avoid group tree navigation.
-- [ ] Keep navigation flat, search-first, and fast.
+- [x] Add favorites view.
+- [x] Add recent view.
+- [x] Add frequent view.
+- [x] Add type-filtered views.
+- [x] Avoid folder hierarchy.
+- [x] Avoid group tree navigation.
+- [x] Keep navigation flat, search-first, and fast.
 
 ### V2 Sync
+
+> Deferred by request. Everything in V2 except this Sync section is implemented. CloudKit/CKSyncEngine is viable for a Developer ID app but requires a paid Apple Developer account, an iCloud container + entitlements, and an embedded provisioning profile (build/release-pipeline work), so sync is intentionally postponed.
 
 - [ ] Evaluate iCloud sync.
 - [ ] Add optional sync for text entries.
@@ -317,20 +319,20 @@ Add power-user features, privacy controls, advanced search, better previews, and
 
 ### V2 Reliability
 
-- [ ] Add database migration system.
-- [ ] Add database corruption detection.
-- [ ] Add crash-safe database writes.
-- [ ] Add fallback for undecodable clipboard data.
-- [ ] Add diagnostics export for debugging.
-- [ ] Add automated tests for storage, search, ignore rules, and deduplication.
+- [x] Add database migration system.
+- [x] Add database corruption detection.
+- [x] Add crash-safe database writes.
+- [x] Add fallback for undecodable clipboard data.
+- [x] Add diagnostics export for debugging.
+- [x] Add automated tests for storage, search, ignore rules, and deduplication.
 
 ### V2 Acceptance Criteria
 
-- [ ] User can filter and search history more precisely than V1.
-- [ ] User can enable privacy protections for sensitive content.
-- [ ] User can use favorites and smart views without managing groups.
+- [x] User can filter and search history more precisely than V1.
+- [x] User can enable privacy protections for sensitive content.
+- [x] User can use favorites and smart views without managing groups.
 - [ ] Optional sync does not compromise performance or privacy.
-- [ ] Very large history remains fast and memory-efficient.
+- [x] Very large history remains fast and memory-efficient.
 
 ## Implementation Notes for Agent
 

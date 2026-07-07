@@ -4,6 +4,7 @@ import FifiCore
 import LeafiyUI
 import LeafiyUICore
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct FifiApp: App {
@@ -27,9 +28,13 @@ final class FifiAppState: ObservableObject {
     @Published var settingsStore: SettingsStore?
     @Published var historyService: HistoryService?
     @Published var ignoreRulesStore: IgnoreRulesStore?
+    @Published var appPrivacyStore: AppPrivacyStore?
     @Published var hotkeyRegistrationMessage: String?
+    @Published var dataActionMessage: String?
 
     private var monitorReloadHandler: () -> Void = {}
+    private var restoreHandler: (URL) -> Void = { _ in }
+    private var supportDirectory: URL?
 
     private init() {}
 
@@ -37,12 +42,18 @@ final class FifiAppState: ObservableObject {
         settingsStore: SettingsStore,
         historyService: HistoryService,
         ignoreRulesStore: IgnoreRulesStore,
-        monitorReload: @escaping () -> Void
+        appPrivacyStore: AppPrivacyStore,
+        supportDirectory: URL,
+        monitorReload: @escaping () -> Void,
+        restoreHandler: @escaping (URL) -> Void
     ) {
         self.settingsStore = settingsStore
         self.historyService = historyService
         self.ignoreRulesStore = ignoreRulesStore
+        self.appPrivacyStore = appPrivacyStore
+        self.supportDirectory = supportDirectory
         self.monitorReloadHandler = monitorReload
+        self.restoreHandler = restoreHandler
     }
 
     func reloadMonitor() {
@@ -78,6 +89,112 @@ final class FifiAppState: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
         return alert.runModal() == .alertFirstButtonReturn
     }
+
+    // MARK: - Import / export / backup / diagnostics
+
+    private static var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+    }
+
+    func exportSettings() {
+        guard let settingsStore, let ignoreRulesStore else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "fifi-settings.json"
+        panel.allowedContentTypes = [.json]
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let export = SettingsExport(
+                settings: settingsStore.settings,
+                ignoredApps: (try? ignoreRulesStore.ignoredApps()) ?? [],
+                ignoreRegexRules: (try? ignoreRulesStore.regexRules()) ?? [],
+                appPrivacyRules: (try? appPrivacyStore?.rules() ?? []) ?? []
+            )
+            try SettingsCodec.encode(export).write(to: url)
+            dataActionMessage = "Settings exported."
+        } catch {
+            dataActionMessage = "Export failed: \(error.localizedDescription)"
+        }
+    }
+
+    func importSettings() {
+        guard let settingsStore, let ignoreRulesStore else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let export = try SettingsCodec.decode(try Data(contentsOf: url))
+            settingsStore.update { $0 = export.settings }
+            for app in export.ignoredApps {
+                try? ignoreRulesStore.addIgnoredApp(bundleID: app.bundleID, appName: app.appName)
+            }
+            for rule in export.ignoreRegexRules {
+                _ = try? ignoreRulesStore.addRegexRule(pattern: rule.pattern, label: rule.label)
+            }
+            for rule in export.appPrivacyRules {
+                try? appPrivacyStore?.setRule(bundleID: rule.bundleID, appName: rule.appName, mode: rule.mode)
+            }
+            reloadMonitor()
+            dataActionMessage = "Settings imported."
+        } catch {
+            dataActionMessage = "Import failed: \(error.localizedDescription)"
+        }
+    }
+
+    func backupHistory() {
+        guard let historyService else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Back Up Here"
+        panel.message = "Choose a folder for the Fifi backup."
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let base = panel.url else { return }
+        let folder = base.appendingPathComponent("Fifi Backup", isDirectory: true)
+        do {
+            try historyService.exportBackup(to: folder)
+            dataActionMessage = "Backed up to \(folder.path)."
+        } catch {
+            dataActionMessage = "Backup failed: \(error.localizedDescription)"
+        }
+    }
+
+    func restoreHistory() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.prompt = "Restore"
+        panel.message = "Choose a Fifi backup folder. Fifi will relaunch."
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Restore from backup?"
+        alert.informativeText = "This replaces all current history and relaunches Fifi."
+        alert.addButton(withTitle: "Restore")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        restoreHandler(folder)
+    }
+
+    func exportDiagnostics() {
+        guard let historyService else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "fifi-diagnostics.txt"
+        panel.allowedContentTypes = [.plainText]
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let report = historyService.diagnosticsReport(appVersion: Self.appVersion)
+        do {
+            try report.render().write(to: url, atomically: true, encoding: .utf8)
+            dataActionMessage = "Diagnostics exported."
+        } catch {
+            dataActionMessage = "Diagnostics export failed: \(error.localizedDescription)"
+        }
+    }
 }
 
 @MainActor
@@ -86,6 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var historyStore: HistoryStore?
     private var blobStore: BlobStore?
     private var ignoreRulesStore: IgnoreRulesStore?
+    private var appPrivacyStore: AppPrivacyStore?
     private var settingsStore: SettingsStore?
     private var historyService: HistoryService?
     private var monitor: ClipboardMonitor?
@@ -94,6 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let appState = FifiAppState.shared
     private var cleanupTimer: Timer?
+    private var expiryTimer: Timer?
     private var settingsCancellable: AnyCancellable?
     private var lastRegisteredShortcut: String?
     private var lastLaunchAtLogin: Bool?
@@ -103,6 +222,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var openPickerItem: NSMenuItem?
     private var pauseRecordingItem: NSMenuItem?
     private var warnedHotkeyConflict = false
+    private var lastAppearance: AppearanceMode?
+    private var lastEncryptBlobs: Bool?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -144,6 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         cleanupTimer?.invalidate()
+        expiryTimer?.invalidate()
         monitor?.stop()
         hotKeyCenter.unregister()
         database?.close()
@@ -155,10 +277,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let supportDirectory = try applicationSupportDirectory()
         let databaseURL = supportDirectory.appendingPathComponent("fifi.sqlite3", isDirectory: false)
 
-        let database = try Database(path: databaseURL.path)
+        let database = try Self.openDatabaseWithRecovery(at: databaseURL)
         let historyStore = try HistoryStore(database: database)
         let blobStore = try BlobStore(rootDirectory: supportDirectory)
         let ignoreRulesStore = IgnoreRulesStore(database: database)
+        let appPrivacyStore = AppPrivacyStore(database: database)
         let settingsStore = SettingsStore()
         let historyService = HistoryService(
             historyStore: historyStore,
@@ -170,7 +293,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             historyStore: historyStore,
             blobStore: blobStore,
             ignoreRulesStore: ignoreRulesStore,
-            settingsStore: settingsStore
+            appPrivacyStore: appPrivacyStore,
+            settingsStore: settingsStore,
+            memorySink: { [weak historyService] item in historyService?.addMemoryItem(item) }
         )
         let pickerController = PickerController(
             historyService: historyService,
@@ -185,6 +310,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.historyStore = historyStore
         self.blobStore = blobStore
         self.ignoreRulesStore = ignoreRulesStore
+        self.appPrivacyStore = appPrivacyStore
         self.settingsStore = settingsStore
         self.historyService = historyService
         self.monitor = monitor
@@ -194,8 +320,75 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsStore: settingsStore,
             historyService: historyService,
             ignoreRulesStore: ignoreRulesStore,
-            monitorReload: { [weak monitor] in monitor?.reloadIgnoreRules() }
+            appPrivacyStore: appPrivacyStore,
+            supportDirectory: supportDirectory,
+            monitorReload: { [weak monitor] in monitor?.reloadIgnoreRules() },
+            restoreHandler: { [weak self] url in self?.performRestore(from: url) }
         )
+    }
+
+    /// Opens the database, verifies integrity, and rebuilds from scratch if the
+    /// file is corrupt (moving the bad file aside for post-mortem).
+    private static func openDatabaseWithRecovery(at url: URL) throws -> Database {
+        let database: Database
+        do {
+            database = try Database(path: url.path)
+            let issues = try database.integrityCheck()
+            if issues.isEmpty {
+                return database
+            }
+            NSLog("Fifi database integrity check failed: \(issues.joined(separator: "; "))")
+            database.close()
+        } catch {
+            NSLog("Fifi database open failed, rebuilding: \(String(describing: error))")
+        }
+        let corruptURL = url.deletingLastPathComponent()
+            .appendingPathComponent("fifi-corrupt-\(Int(Date().timeIntervalSince1970)).sqlite3")
+        let fileManager = FileManager.default
+        for suffix in ["", "-wal", "-shm"] {
+            let source = URL(fileURLWithPath: url.path + suffix)
+            guard fileManager.fileExists(atPath: source.path) else { continue }
+            try? fileManager.moveItem(at: source, to: URL(fileURLWithPath: corruptURL.path + suffix))
+        }
+        return try Database(path: url.path)
+    }
+
+    /// Restores history from a backup folder: closes live connections, copies
+    /// the backup files over the live ones, then relaunches.
+    private func performRestore(from folder: URL) {
+        guard let supportDirectory = try? applicationSupportDirectory() else { return }
+        let fileManager = FileManager.default
+        let backupDB = folder.appendingPathComponent("fifi.sqlite3")
+        guard fileManager.fileExists(atPath: backupDB.path) else {
+            NSLog("Fifi restore: no fifi.sqlite3 in backup folder")
+            return
+        }
+        monitor?.stop()
+        database?.close()
+        let liveDB = supportDirectory.appendingPathComponent("fifi.sqlite3")
+        for suffix in ["-wal", "-shm"] {
+            try? fileManager.removeItem(at: URL(fileURLWithPath: liveDB.path + suffix))
+        }
+        try? fileManager.removeItem(at: liveDB)
+        try? fileManager.copyItem(at: backupDB, to: liveDB)
+        for name in ["blobs", "thumbnails"] {
+            let source = folder.appendingPathComponent(name, isDirectory: true)
+            let destination = supportDirectory.appendingPathComponent(name, isDirectory: true)
+            if fileManager.fileExists(atPath: source.path) {
+                try? fileManager.removeItem(at: destination)
+                try? fileManager.copyItem(at: source, to: destination)
+            }
+        }
+        relaunch()
+    }
+
+    private func relaunch() {
+        let url = URL(fileURLWithPath: Bundle.main.bundlePath)
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, _ in
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+        }
     }
 
     private func applicationSupportDirectory() throws -> URL {
@@ -378,6 +571,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         registerHotKeyIfNeeded(settings.hotkeyShortcut)
         applyLaunchAtLoginIfNeeded(settings)
         applyRecordingStateIfNeeded(settings)
+        applyAppearanceIfNeeded(settings)
+        applyEncryptionIfNeeded(settings)
         updateStatusMenu()
     }
 
@@ -410,6 +605,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func applyAppearanceIfNeeded(_ settings: AppSettings) {
+        guard lastAppearance != settings.appearance else { return }
+        lastAppearance = settings.appearance
+        switch settings.appearance {
+        case .system: NSApp.appearance = nil
+        case .light: NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark: NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+
+    private func applyEncryptionIfNeeded(_ settings: AppSettings) {
+        guard lastEncryptBlobs != settings.privacy.encryptBlobs else { return }
+        lastEncryptBlobs = settings.privacy.encryptBlobs
+        guard let blobStore else { return }
+        if settings.privacy.encryptBlobs {
+            do {
+                blobStore.setCipher(try EncryptionKeyStore.makeCipher())
+                NSLog("Fifi blob encryption enabled")
+            } catch {
+                NSLog("Fifi failed to enable blob encryption: \(String(describing: error))")
+            }
+        } else {
+            // New writes go out plaintext; already-encrypted blobs remain
+            // readable because the key stays in the Keychain.
+            blobStore.setCipher(nil)
+        }
+    }
+
     // MARK: - Cleanup
 
     private func scheduleCleanup() {
@@ -419,6 +642,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         cleanupTimer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.historyService?.runCleanup()
+            }
+        }
+        // Sensitive auto-delete needs finer granularity than the 10-minute
+        // cleanup; sweep expired entries every 20 s.
+        expiryTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.historyService?.deleteExpired() == true else { return }
+                NotificationCenter.default.post(name: .fifiHistoryDidChange, object: nil)
             }
         }
     }
@@ -436,6 +667,8 @@ private struct FifiSettingsView: View {
                     settingsStore: settingsStore,
                     hotkeyRegistrationMessage: appState.hotkeyRegistrationMessage
                 )
+                PickerSettingsPane(settingsStore: settingsStore)
+                PrivacySettingsPane(settingsStore: settingsStore, appState: appState)
                 StorageSettingsPane(
                     settingsStore: settingsStore,
                     historyService: historyService,
@@ -479,6 +712,13 @@ private struct GeneralSettingsPane: View {
                     Text("Copy only").tag(SelectionBehavior.copy)
                 }
                 Toggle("Launch at login", isOn: launchAtLoginBinding)
+            }
+            Section("Appearance") {
+                Picker("Theme", selection: appearanceBinding) {
+                    Text("System").tag(AppearanceMode.system)
+                    Text("Light").tag(AppearanceMode.light)
+                    Text("Dark").tag(AppearanceMode.dark)
+                }
             }
         }
     }
@@ -526,6 +766,17 @@ private struct GeneralSettingsPane: View {
             set: { newValue in
                 settingsStore.update { settings in
                     settings.launchAtLogin = newValue
+                }
+            }
+        )
+    }
+
+    private var appearanceBinding: Binding<AppearanceMode> {
+        Binding(
+            get: { settingsStore.settings.appearance },
+            set: { newValue in
+                settingsStore.update { settings in
+                    settings.appearance = newValue
                 }
             }
         )
@@ -579,6 +830,28 @@ private struct StorageSettingsPane: View {
                             appState.clearHistoryKeepingPinned(refresh: refreshUsage)
                         }
                     }
+                }
+            }
+            Section("Data") {
+                LabeledContent("Settings") {
+                    HStack(spacing: LeafiyDesign.Spacing.s) {
+                        Button("Export…") { appState.exportSettings() }
+                        Button("Import…") { appState.importSettings() }
+                    }
+                }
+                LabeledContent("History backup") {
+                    HStack(spacing: LeafiyDesign.Spacing.s) {
+                        Button("Back Up…") { appState.backupHistory() }
+                        Button("Restore…") { appState.restoreHistory() }
+                    }
+                }
+                LabeledContent("Diagnostics") {
+                    Button("Export…") { appState.exportDiagnostics() }
+                }
+                if let message = appState.dataActionMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -869,18 +1142,4 @@ private struct RunningAppChoice: Identifiable {
     var id: String { bundleID }
     let name: String
     let bundleID: String
-}
-
-private extension ClipItemType {
-    var fifiLabel: String {
-        switch self {
-        case .text: return "Text"
-        case .richText: return "Rich Text"
-        case .url: return "URLs"
-        case .image: return "Images"
-        case .color: return "Colors"
-        case .file: return "Files"
-        case .unknown: return "Other"
-        }
-    }
 }

@@ -35,6 +35,91 @@ import FifiCore
               item.id, item.type.rawValue, wrote ? 1 : 0, pasteboard.changeCount)
     }
 
+    enum ColorFormat { case hex, rgb, hsl }
+
+    /// Copies the item's textual value as plain `.string` regardless of type.
+    static func copyPlainText(_ item: ClipboardItem, blobStore: BlobStore) {
+        writeString(plainText(for: item, blobStore: blobStore), item: item)
+    }
+
+    /// Copies a color item formatted as HEX, RGB, or HSL. Falls back to the
+    /// raw value when the item is not a parseable color.
+    static func copyColor(_ item: ClipboardItem, format: ColorFormat, blobStore: BlobStore) {
+        let raw = text(for: item, blobStore: blobStore)
+        let value: String
+        if let color = ColorValue(hexString: raw) {
+            switch format {
+            case .hex: value = color.hexString
+            case .rgb: value = color.rgbString
+            case .hsl: value = color.hslString
+            }
+        } else {
+            value = raw
+        }
+        writeString(value, item: item)
+    }
+
+    /// Copies a URL with known tracking parameters stripped.
+    static func copyCleanedURL(_ item: ClipboardItem, blobStore: BlobStore) {
+        let raw = text(for: item, blobStore: blobStore)
+        let cleaned = URLCleaner.cleaned(raw) ?? raw
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        let wrote = pasteboard.setString(cleaned, forType: .string)
+        _ = pasteboard.setString(cleaned, forType: .URL)
+        postSelfWrite(pasteboard: pasteboard, item: item, wrote: wrote)
+    }
+
+    /// Reveals the item's first file in Finder.
+    static func revealInFinder(_ item: ClipboardItem) {
+        let paths = filePaths(for: item)
+        guard !paths.isEmpty else { return }
+        let urls = paths.map { URL(fileURLWithPath: $0) }
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
+    }
+
+    /// Opens a URL item in the default browser.
+    static func openURL(_ item: ClipboardItem, blobStore: BlobStore) {
+        let raw = text(for: item, blobStore: blobStore).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: raw), url.scheme != nil else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    static func filePaths(for item: ClipboardItem) -> [String] {
+        (item.fileReference ?? "")
+            .split(separator: "\n")
+            .map(String.init)
+            .filter { !$0.isEmpty }
+    }
+
+    private static func writeString(_ value: String, item: ClipboardItem) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        let wrote = pasteboard.setString(value, forType: .string)
+        postSelfWrite(pasteboard: pasteboard, item: item, wrote: wrote)
+    }
+
+    private static func postSelfWrite(pasteboard: NSPasteboard, item: ClipboardItem, wrote: Bool) {
+        NotificationCenter.default.post(
+            name: .fifiPasteboardDidSelfWrite,
+            object: nil,
+            userInfo: ["changeCount": pasteboard.changeCount]
+        )
+        NSLog("Fifi[pasteboard] quick-action id=%ld ok=%d changeCount=%ld",
+              item.id, wrote ? 1 : 0, pasteboard.changeCount)
+    }
+
+    private static func plainText(for item: ClipboardItem, blobStore: BlobStore) -> String {
+        switch item.type {
+        case .file:
+            return filePaths(for: item).joined(separator: "\n")
+        case .image:
+            return item.previewText
+        default:
+            return text(for: item, blobStore: blobStore)
+        }
+    }
+
     static func paste() {
         guard accessibilityTrusted() else {
             warnAccessibilityOnce()
