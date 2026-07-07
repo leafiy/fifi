@@ -56,7 +56,7 @@ struct PickerView: View {
                     .font(.caption.monospaced())
             }
             .toggleStyle(.button)
-            .help("Regex search")
+            .help(L("Regex search"))
         }
         .font(.body)
         .padding(.horizontal, LeafiyDesign.Spacing.m)
@@ -65,7 +65,7 @@ struct PickerView: View {
 
     private var filterBar: some View {
         VStack(spacing: LeafiyDesign.Spacing.xs) {
-            Picker("View", selection: $viewModel.viewMode) {
+            Picker(L("View"), selection: $viewModel.viewMode) {
                 ForEach(PickerViewMode.allCases) { mode in
                     Text(mode.label).tag(mode)
                 }
@@ -90,7 +90,7 @@ struct PickerView: View {
             Button {
                 viewModel.selectedTypes = []
             } label: {
-                Label("All types", systemImage: viewModel.selectedTypes.isEmpty ? "checkmark" : "")
+                Label(L("All types"), systemImage: viewModel.selectedTypes.isEmpty ? "checkmark" : "")
             }
             Divider()
             ForEach(ClipItemType.allCases, id: \.self) { type in
@@ -111,7 +111,7 @@ struct PickerView: View {
             Button {
                 viewModel.sourceAppBundleID = nil
             } label: {
-                Label("All apps", systemImage: viewModel.sourceAppBundleID == nil ? "checkmark" : "")
+                Label(L("All apps"), systemImage: viewModel.sourceAppBundleID == nil ? "checkmark" : "")
             }
             if !viewModel.sourceApps.isEmpty {
                 Divider()
@@ -149,15 +149,15 @@ struct PickerView: View {
 
     private var typeMenuLabel: String {
         switch viewModel.selectedTypes.count {
-        case 0: return "Type"
+        case 0: return L("Type")
         case 1: return viewModel.selectedTypes.first!.fifiLabel
-        default: return "\(viewModel.selectedTypes.count) types"
+        default: return String(format: L("%d types"), viewModel.selectedTypes.count)
         }
     }
 
     private var appMenuLabel: String {
-        guard let bundleID = viewModel.sourceAppBundleID else { return "App" }
-        return viewModel.sourceApps.first { $0.bundleID == bundleID }?.appName ?? "App"
+        guard let bundleID = viewModel.sourceAppBundleID else { return L("App") }
+        return viewModel.sourceApps.first { $0.bundleID == bundleID }?.appName ?? L("App")
     }
 
     private func toggleType(_ type: ClipItemType) {

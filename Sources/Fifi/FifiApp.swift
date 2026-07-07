@@ -118,9 +118,9 @@ final class FifiAppState: ObservableObject {
                 appPrivacyRules: (try? appPrivacyStore?.rules() ?? []) ?? []
             )
             try SettingsCodec.encode(export).write(to: url)
-            dataActionMessage = "Settings exported."
+            dataActionMessage = L("Settings exported.")
         } catch {
-            dataActionMessage = "Export failed: \(error.localizedDescription)"
+            dataActionMessage = String(format: L("Export failed: %@"), error.localizedDescription)
         }
     }
 
@@ -144,9 +144,9 @@ final class FifiAppState: ObservableObject {
                 try? appPrivacyStore?.setRule(bundleID: rule.bundleID, appName: rule.appName, mode: rule.mode)
             }
             reloadMonitor()
-            dataActionMessage = "Settings imported."
+            dataActionMessage = L("Settings imported.")
         } catch {
-            dataActionMessage = "Import failed: \(error.localizedDescription)"
+            dataActionMessage = String(format: L("Import failed: %@"), error.localizedDescription)
         }
     }
 
@@ -156,16 +156,16 @@ final class FifiAppState: ObservableObject {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Back Up Here"
-        panel.message = "Choose a folder for the Fifi backup."
+        panel.prompt = L("Back Up Here")
+        panel.message = L("Choose a folder for the Fifi backup.")
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let base = panel.url else { return }
         let folder = base.appendingPathComponent("Fifi Backup", isDirectory: true)
         do {
             try historyService.exportBackup(to: folder)
-            dataActionMessage = "Backed up to \(folder.path)."
+            dataActionMessage = String(format: L("Backed up to %@."), folder.path)
         } catch {
-            dataActionMessage = "Backup failed: \(error.localizedDescription)"
+            dataActionMessage = String(format: L("Backup failed: %@"), error.localizedDescription)
         }
     }
 
@@ -173,16 +173,16 @@ final class FifiAppState: ObservableObject {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.prompt = "Restore"
-        panel.message = "Choose a Fifi backup folder. Fifi will relaunch."
+        panel.prompt = L("Restore")
+        panel.message = L("Choose a Fifi backup folder. Fifi will relaunch.")
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let folder = panel.url else { return }
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Restore from backup?"
-        alert.informativeText = "This replaces all current history and relaunches Fifi."
-        alert.addButton(withTitle: "Restore")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = L("Restore from backup?")
+        alert.informativeText = L("This replaces all current history and relaunches Fifi.")
+        alert.addButton(withTitle: L("Restore"))
+        alert.addButton(withTitle: L("Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         restoreHandler(folder)
     }
@@ -197,9 +197,9 @@ final class FifiAppState: ObservableObject {
         let report = historyService.diagnosticsReport(appVersion: Self.appVersion)
         do {
             try report.render().write(to: url, atomically: true, encoding: .utf8)
-            dataActionMessage = "Diagnostics exported."
+            dataActionMessage = L("Diagnostics exported.")
         } catch {
-            dataActionMessage = "Diagnostics export failed: \(error.localizedDescription)"
+            dataActionMessage = String(format: L("Diagnostics export failed: %@"), error.localizedDescription)
         }
     }
 }
@@ -745,11 +745,11 @@ private struct GeneralSettingsPane: View {
                 }
                 Toggle(L("Launch at login"), isOn: launchAtLoginBinding)
             }
-            Section("Appearance") {
-                Picker("Theme", selection: appearanceBinding) {
-                    Text("System").tag(AppearanceMode.system)
-                    Text("Light").tag(AppearanceMode.light)
-                    Text("Dark").tag(AppearanceMode.dark)
+            Section(L("Appearance")) {
+                Picker(L("Theme"), selection: appearanceBinding) {
+                    Text(L("System")).tag(AppearanceMode.system)
+                    Text(L("Light")).tag(AppearanceMode.light)
+                    Text(L("Dark")).tag(AppearanceMode.dark)
                 }
             }
         }
@@ -873,21 +873,21 @@ private struct StorageSettingsPane: View {
                     }
                 }
             }
-            Section("Data") {
-                LabeledContent("Settings") {
+            Section(L("Data")) {
+                LabeledContent(L("Settings")) {
                     HStack(spacing: LeafiyDesign.Spacing.s) {
-                        Button("Export…") { appState.exportSettings() }
-                        Button("Import…") { appState.importSettings() }
+                        Button(L("Export…")) { appState.exportSettings() }
+                        Button(L("Import…")) { appState.importSettings() }
                     }
                 }
-                LabeledContent("History backup") {
+                LabeledContent(L("History backup")) {
                     HStack(spacing: LeafiyDesign.Spacing.s) {
-                        Button("Back Up…") { appState.backupHistory() }
-                        Button("Restore…") { appState.restoreHistory() }
+                        Button(L("Back Up…")) { appState.backupHistory() }
+                        Button(L("Restore…")) { appState.restoreHistory() }
                     }
                 }
-                LabeledContent("Diagnostics") {
-                    Button("Export…") { appState.exportDiagnostics() }
+                LabeledContent(L("Diagnostics")) {
+                    Button(L("Export…")) { appState.exportDiagnostics() }
                 }
                 if let message = appState.dataActionMessage {
                     Text(message)

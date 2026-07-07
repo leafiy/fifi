@@ -1,6 +1,7 @@
 import AppKit
 import FifiCore
 import LeafiyUI
+import LeafiyUICore
 import SwiftUI
 
 struct PickerRowView: View {
@@ -134,7 +135,7 @@ struct PickerRowView: View {
             ThumbnailView(item: item, loader: thumbnailLoader)
                 .frame(width: LeafiyDesign.Size.rowIcon, height: LeafiyDesign.Size.rowIcon)
             VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
-                Text(item.previewText.isEmpty ? L("Image") : item.previewText)
+                Text(L("Image"))
                     .font(.callout)
                     .lineLimit(1)
                 if let dimensions = imageDimensions {
@@ -208,7 +209,7 @@ struct PickerRowView: View {
             Text(item.sourceAppName ?? L("Unknown"))
                 .lineLimit(1)
             Text("·")
-            Text(Self.relativeDateFormatter.localizedString(for: item.updatedAt, relativeTo: Date()))
+            Text(relativeUpdatedAt)
                 .lineLimit(1)
         }
         .font(.caption2)
@@ -288,6 +289,14 @@ struct PickerRowView: View {
         if let value = metadata[key] as? Double { return Int(value) }
         if let value = metadata[key] as? String { return Int(value) }
         return nil
+    }
+
+    /// Relative timestamp resolved against the app's selected language rather
+    /// than only the system locale, so it matches the rest of the picker.
+    private var relativeUpdatedAt: String {
+        let formatter = Self.relativeDateFormatter
+        formatter.locale = Locale(identifier: LeafiyLocalization.resolvedCode())
+        return formatter.localizedString(for: item.updatedAt, relativeTo: Date())
     }
 
     private static let relativeDateFormatter: RelativeDateTimeFormatter = {

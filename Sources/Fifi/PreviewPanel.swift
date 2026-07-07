@@ -39,7 +39,7 @@ struct PreviewPanel: View {
             if item.isSensitive {
                 Image(systemName: "lock.shield")
                     .foregroundStyle(.orange)
-                    .help("Sensitive content")
+                    .help(L("Sensitive content"))
             }
             Spacer()
             if let app = item.sourceAppName {
@@ -75,7 +75,7 @@ struct PreviewPanel: View {
             ScrollView { Text(raw).font(.callout).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
                 .frame(maxHeight: 120)
             if cleaned != raw {
-                Text("Without tracking:")
+                Text(L("Without tracking:"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(cleaned)
@@ -216,9 +216,28 @@ private struct ImageDetail: View {
             } else {
                 RoundedRectangle(cornerRadius: LeafiyDesign.Radius.control).fill(.quaternary).frame(height: 160)
             }
-            Text(item.previewText).font(.caption).foregroundStyle(.secondary)
+            Text(caption).font(.caption).foregroundStyle(.secondary)
         }
         .task(id: item.id) { load() }
+    }
+
+    /// Localized "Image" label plus pixel dimensions when the capture recorded
+    /// them, replacing the English preview text baked in at capture time.
+    private var caption: String {
+        guard let json = item.metadataJSON, let data = json.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let width = Self.dimension(object["width"]), let height = Self.dimension(object["height"]),
+              width > 0, height > 0 else {
+            return L("Image")
+        }
+        return "\(L("Image")) \(width)×\(height)"
+    }
+
+    private static func dimension(_ value: Any?) -> Int? {
+        if let intValue = value as? Int { return intValue }
+        if let doubleValue = value as? Double { return Int(doubleValue) }
+        if let stringValue = value as? String { return Int(stringValue) }
+        return nil
     }
 
     private func load() {

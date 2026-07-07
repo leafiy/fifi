@@ -7,10 +7,10 @@ enum PickerViewMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .all: return "All"
-        case .favorites: return "Favorites"
-        case .recent: return "Recent"
-        case .frequent: return "Frequent"
+        case .all: return L("All")
+        case .favorites: return L("Favorites")
+        case .recent: return L("Recent")
+        case .frequent: return L("Frequent")
         }
     }
 }
@@ -20,10 +20,10 @@ enum PickerDateRange: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .any: return "Any date"
-        case .today: return "Today"
-        case .last7Days: return "Last 7 days"
-        case .last30Days: return "Last 30 days"
+        case .any: return L("Any date")
+        case .today: return L("Today")
+        case .last7Days: return L("Last 7 days")
+        case .last30Days: return L("Last 30 days")
         }
     }
 

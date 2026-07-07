@@ -90,3 +90,107 @@
 "Fifi can’t paste automatically" = "Fifi 无法自动粘贴";
 "The item WAS copied — press ⌘V to paste it manually.\n\nFor automatic paste, enable Fifi under System Settings → Privacy & Security → Accessibility. After rebuilding the app you must re-add it (the ad-hoc signature changes every build)." = "项目已拷贝——请按 ⌘V 手动粘贴。\n\n如需自动粘贴，请在“系统设置”→“隐私与安全性”→“辅助功能”中启用 Fifi。重新构建 App 后必须重新添加它（临时签名每次构建都会变化）。";
 "Open System Settings" = "打开系统设置";
+
+/* Data, backup, diagnostics */
+"Data" = "数据";
+"Settings" = "设置";
+"Export…" = "导出…";
+"Import…" = "导入…";
+"History backup" = "历史记录备份";
+"Back Up…" = "备份…";
+"Restore…" = "恢复…";
+"Diagnostics" = "诊断";
+"Settings exported." = "设置已导出。";
+"Export failed: %@" = "导出失败：%@";
+"Settings imported." = "设置已导入。";
+"Import failed: %@" = "导入失败：%@";
+"Back Up Here" = "备份到此处";
+"Choose a folder for the Fifi backup." = "选择用于存放 Fifi 备份的文件夹。";
+"Backed up to %@." = "已备份到 %@。";
+"Backup failed: %@" = "备份失败：%@";
+"Restore" = "恢复";
+"Choose a Fifi backup folder. Fifi will relaunch." = "选择一个 Fifi 备份文件夹。Fifi 将重新启动。";
+"Restore from backup?" = "从备份恢复？";
+"This replaces all current history and relaunches Fifi." = "这将替换当前所有历史记录并重新启动 Fifi。";
+"Diagnostics exported." = "诊断信息已导出。";
+"Diagnostics export failed: %@" = "诊断信息导出失败：%@";
+
+/* Appearance */
+"Appearance" = "外观";
+"Theme" = "主题";
+"System" = "跟随系统";
+"Light" = "浅色";
+"Dark" = "深色";
+
+/* Picker settings */
+"Picker" = "选择器";
+"Layout" = "布局";
+"Width" = "宽度";
+"Height" = "高度";
+"Row density" = "行密度";
+"Comfortable" = "宽松";
+"Compact" = "紧凑";
+"Show preview panel" = "显示预览面板";
+"Search" = "搜索";
+"Sort order" = "排序方式";
+"Most recent" = "最近使用";
+"Most used" = "使用最多";
+"Fuzzy ranking" = "模糊排序";
+"Number shortcuts (⌘1–0)" = "数字快捷键（⌘1–0）";
+
+/* Privacy settings */
+"Privacy" = "隐私";
+"Detection" = "检测";
+"Skip password-manager items" = "跳过密码管理器项目";
+"Detect credit card numbers" = "检测信用卡号";
+"Detect API keys and tokens" = "检测 API 密钥和令牌";
+"Detect verification codes" = "检测验证码";
+"Sensitive handling" = "敏感内容处理";
+"When detected" = "检测到时";
+"Don’t record" = "不记录";
+"Auto-delete after delay" = "延迟后自动删除";
+"Delete after (seconds)" = "延迟删除（秒）";
+"Seconds" = "秒";
+"Modes" = "模式";
+"Private mode (memory only)" = "隐私模式（仅内存）";
+"Encrypt stored images and large text" = "加密存储的图像和大段文本";
+"Private mode keeps captures in memory and never writes them to disk. Encryption protects blob files at rest; search text stays indexed for speed." = "隐私模式仅将捕获内容保留在内存中，绝不写入磁盘。加密可保护静态的 blob 文件；搜索文本仍会建立索引以保证速度。";
+"Per-App Privacy" = "按 App 隐私";
+"No per-app rules" = "没有按 App 规则";
+"Mode" = "模式";
+"Always sensitive" = "始终视为敏感";
+"Memory only" = "仅内存";
+"Sensitive" = "敏感";
+"Couldn’t add rule." = "无法添加规则。";
+
+/* Picker views and filters */
+"View" = "视图";
+"All" = "全部";
+"Favorites" = "收藏";
+"Recent" = "最近";
+"Frequent" = "常用";
+"Any date" = "任意日期";
+"Today" = "今天";
+"Last 7 days" = "最近 7 天";
+"Last 30 days" = "最近 30 天";
+"All types" = "所有类型";
+"All apps" = "所有 App";
+"Type" = "类型";
+"%d types" = "%d 种类型";
+"App" = "App";
+"Regex search" = "正则搜索";
+"Search (regex)" = "搜索（正则）";
+"↩ paste" = "↩ 粘贴";
+
+/* Preview panel and quick actions */
+"No selection" = "未选择项目";
+"Sensitive content" = "敏感内容";
+"Without tracking:" = "移除追踪参数后：";
+"Copy as Plain Text" = "拷贝为纯文本";
+"Copy as HEX" = "拷贝为 HEX";
+"Copy as RGB" = "拷贝为 RGB";
+"Copy as HSL" = "拷贝为 HSL";
+"Open URL" = "打开 URL";
+"Copy Without Tracking" = "拷贝并移除追踪参数";
+"Reveal in Finder" = "在访达中显示";
+"Quick Look" = "快速查看";

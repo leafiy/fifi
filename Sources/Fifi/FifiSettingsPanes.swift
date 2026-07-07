@@ -7,23 +7,23 @@ struct PickerSettingsPane: View {
     @ObservedObject var settingsStore: SettingsStore
 
     var body: some View {
-        SettingsPane("Picker", systemImage: "rectangle.and.text.magnifyingglass", height: 360) {
-            Section("Layout") {
-                stepperRow("Width", binding: intBinding(\.pickerWidth, lower: 320, upper: 900), range: 320...900, step: 20)
-                stepperRow("Height", binding: intBinding(\.pickerHeight, lower: 320, upper: 1000), range: 320...1000, step: 20)
-                Picker("Row density", selection: densityBinding) {
-                    Text("Comfortable").tag(RowDensity.comfortable)
-                    Text("Compact").tag(RowDensity.compact)
+        SettingsPane(L("Picker"), systemImage: "rectangle.and.text.magnifyingglass", height: 360) {
+            Section(L("Layout")) {
+                stepperRow(L("Width"), binding: intBinding(\.pickerWidth, lower: 320, upper: 900), range: 320...900, step: 20)
+                stepperRow(L("Height"), binding: intBinding(\.pickerHeight, lower: 320, upper: 1000), range: 320...1000, step: 20)
+                Picker(L("Row density"), selection: densityBinding) {
+                    Text(L("Comfortable")).tag(RowDensity.comfortable)
+                    Text(L("Compact")).tag(RowDensity.compact)
                 }
-                Toggle("Show preview panel", isOn: boolBinding(\.showPreviewPanel))
+                Toggle(L("Show preview panel"), isOn: boolBinding(\.showPreviewPanel))
             }
-            Section("Search") {
-                Picker("Sort order", selection: sortBinding) {
-                    Text("Most recent").tag(HistorySortOrder.recency)
-                    Text("Most used").tag(HistorySortOrder.mostUsed)
+            Section(L("Search")) {
+                Picker(L("Sort order"), selection: sortBinding) {
+                    Text(L("Most recent")).tag(HistorySortOrder.recency)
+                    Text(L("Most used")).tag(HistorySortOrder.mostUsed)
                 }
-                Toggle("Fuzzy ranking", isOn: boolBinding(\.fuzzyRanking))
-                Toggle("Number shortcuts (⌘1–0)", isOn: boolBinding(\.numberShortcuts))
+                Toggle(L("Fuzzy ranking"), isOn: boolBinding(\.fuzzyRanking))
+                Toggle(L("Number shortcuts (⌘1–0)"), isOn: boolBinding(\.numberShortcuts))
             }
         }
     }
@@ -82,58 +82,58 @@ struct PrivacySettingsPane: View {
     @State private var message = ""
 
     var body: some View {
-        SettingsPane("Privacy", systemImage: "hand.raised.square", height: 520) {
-            Section("Detection") {
-                Toggle("Skip password-manager items", isOn: privacyBool(\.skipConcealed))
-                Toggle("Detect credit card numbers", isOn: privacyBool(\.detectCreditCards))
-                Toggle("Detect API keys and tokens", isOn: privacyBool(\.detectAPIKeys))
-                Toggle("Detect verification codes", isOn: privacyBool(\.detectVerificationCodes))
+        SettingsPane(L("Privacy"), systemImage: "hand.raised.square", height: 520) {
+            Section(L("Detection")) {
+                Toggle(L("Skip password-manager items"), isOn: privacyBool(\.skipConcealed))
+                Toggle(L("Detect credit card numbers"), isOn: privacyBool(\.detectCreditCards))
+                Toggle(L("Detect API keys and tokens"), isOn: privacyBool(\.detectAPIKeys))
+                Toggle(L("Detect verification codes"), isOn: privacyBool(\.detectVerificationCodes))
             }
-            Section("Sensitive handling") {
-                Picker("When detected", selection: handlingBinding) {
-                    Text("Don't record").tag(SensitiveHandling.ignore)
-                    Text("Auto-delete after delay").tag(SensitiveHandling.autoDelete)
+            Section(L("Sensitive handling")) {
+                Picker(L("When detected"), selection: handlingBinding) {
+                    Text(L("Don’t record")).tag(SensitiveHandling.ignore)
+                    Text(L("Auto-delete after delay")).tag(SensitiveHandling.autoDelete)
                 }
                 if settingsStore.settings.privacy.handling == .autoDelete {
                     HStack {
-                        Text("Delete after (seconds)")
+                        Text(L("Delete after (seconds)"))
                         Spacer()
-                        TextField("Seconds", value: autoDeleteBinding, format: .number)
+                        TextField(L("Seconds"), value: autoDeleteBinding, format: .number)
                             .labelsHidden()
                             .multilineTextAlignment(.trailing)
                             .frame(width: 80)
-                        Stepper("Seconds", value: autoDeleteBinding, in: 5...3600, step: 5)
+                        Stepper(L("Seconds"), value: autoDeleteBinding, in: 5...3600, step: 5)
                             .labelsHidden()
                     }
                 }
             }
-            Section("Modes") {
-                Toggle("Private mode (memory only)", isOn: privacyBool(\.privateMode))
-                Toggle("Encrypt stored images and large text", isOn: privacyBool(\.encryptBlobs))
-                Text("Private mode keeps captures in memory and never writes them to disk. Encryption protects blob files at rest; search text stays indexed for speed.")
+            Section(L("Modes")) {
+                Toggle(L("Private mode (memory only)"), isOn: privacyBool(\.privateMode))
+                Toggle(L("Encrypt stored images and large text"), isOn: privacyBool(\.encryptBlobs))
+                Text(L("Private mode keeps captures in memory and never writes them to disk. Encryption protects blob files at rest; search text stays indexed for speed."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section("Per-App Privacy") {
+            Section(L("Per-App Privacy")) {
                 if rules.isEmpty {
-                    Text("No per-app rules")
+                    Text(L("No per-app rules"))
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(rules) { rule in
                         ruleRow(rule)
                     }
                 }
-                TextField("Bundle identifier", text: $bundleIDText, prompt: Text("Bundle identifier, e.g. com.apple.Safari"))
+                TextField(L("Bundle identifier"), text: $bundleIDText, prompt: Text(L("Bundle identifier, e.g. com.apple.Safari")))
                     .labelsHidden()
                 HStack(spacing: LeafiyDesign.Spacing.s) {
-                    Picker("Mode", selection: $newMode) {
-                        Text("Always sensitive").tag(AppPrivacyMode.sensitive)
-                        Text("Memory only").tag(AppPrivacyMode.memoryOnly)
+                    Picker(L("Mode"), selection: $newMode) {
+                        Text(L("Always sensitive")).tag(AppPrivacyMode.sensitive)
+                        Text(L("Memory only")).tag(AppPrivacyMode.memoryOnly)
                     }
                     .labelsHidden()
                     .fixedSize()
                     Spacer()
-                    Button("Add", action: addRule)
+                    Button(L("Add"), action: addRule)
                         .disabled(bundleIDText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 if !message.isEmpty {
@@ -151,7 +151,7 @@ struct PrivacySettingsPane: View {
                 Text(rule.bundleID).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
-            Text(rule.mode == .sensitive ? "Sensitive" : "Memory only")
+            Text(rule.mode == .sensitive ? L("Sensitive") : L("Memory only"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Button {
@@ -160,7 +160,7 @@ struct PrivacySettingsPane: View {
                 Image(systemName: "minus.circle.fill")
             }
             .buttonStyle(.borderless)
-            .help("Remove")
+            .help(L("Remove"))
         }
     }
 
@@ -178,7 +178,7 @@ struct PrivacySettingsPane: View {
             appState.reloadMonitor()
             message = ""
         } catch {
-            message = "Couldn't add rule."
+            message = L("Couldn’t add rule.")
         }
     }
 
@@ -188,7 +188,7 @@ struct PrivacySettingsPane: View {
             reloadRules()
             appState.reloadMonitor()
         } catch {
-            message = "Couldn't remove rule."
+            message = L("Couldn’t remove rule.")
         }
     }
 
