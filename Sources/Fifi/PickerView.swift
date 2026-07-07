@@ -1,8 +1,18 @@
 import AppKit
 import FifiCore
+import LeafiyUI
 import SwiftUI
 
 struct PickerView: View {
+    private enum Metrics {
+        static let pickerWidth: CGFloat = 420
+        static let pickerHeight: CGFloat = 480
+        static let shortcutBadgeWidth: CGFloat = 30
+        static let rowActionsWidth: CGFloat = 68
+        static let rowActionSize: CGFloat = 32
+        static let colorSwatchSize: CGFloat = LeafiyDesign.Spacing.l
+    }
+
     @ObservedObject var viewModel: PickerViewModel
     let thumbnailLoader: ThumbnailLoader
 
@@ -13,10 +23,9 @@ struct PickerView: View {
             searchBar
             Divider()
             itemList
-            Divider()
             footer
         }
-        .frame(width: 420, height: 480)
+        .frame(width: Metrics.pickerWidth, height: Metrics.pickerHeight)
         .background(.regularMaterial)
         .onAppear(perform: focusSearch)
         .onChange(of: viewModel.focusToken) { _ in
@@ -25,7 +34,7 @@ struct PickerView: View {
     }
 
     private var searchBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: LeafiyDesign.Spacing.s) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
             TextField("Search clipboard", text: $viewModel.query)
@@ -33,17 +42,20 @@ struct PickerView: View {
                 .focused($searchFocused)
         }
         .font(.body)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, LeafiyDesign.Spacing.m)
+        .padding(.vertical, LeafiyDesign.Spacing.s)
     }
 
     @ViewBuilder private var itemList: some View {
         if viewModel.items.isEmpty {
-            emptyState
+            EmptyStateView(
+                systemImage: "clipboard",
+                title: viewModel.query.isEmpty ? "No clipboard history" : "No matches"
+            )
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(spacing: 0) {
+                    LazyVStack(spacing: 0) {
                         ForEach(rowModels) { row in
                             PickerRowView(
                                 item: row.item,
@@ -66,15 +78,15 @@ struct PickerView: View {
                                     viewModel.deleteItem(id: row.item.id)
                                 }
                             )
-                                .id(row.item.id)
-                                .onAppear {
-                                    if row.index == viewModel.items.count - 1 {
-                                        viewModel.loadMore()
-                                    }
+                            .id(row.item.id)
+                            .onAppear {
+                                if row.index == viewModel.items.count - 1 {
+                                    viewModel.loadMore()
                                 }
+                            }
                         }
                     }
-                    .padding(.vertical, 6)
+                    .padding(.vertical, LeafiyDesign.Spacing.xs)
                 }
                 .id(viewModel.listRevision)
                 .onChange(of: viewModel.selectedIndex) { index in
@@ -87,28 +99,12 @@ struct PickerView: View {
         }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "clipboard")
-                .font(.system(size: 34))
-                .foregroundStyle(.secondary)
-            Text(viewModel.query.isEmpty ? "No clipboard history" : "No matches")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
     private var footer: some View {
-        HStack {
+        FooterBar {
             Text("\(viewModel.items.count) item\(viewModel.items.count == 1 ? "" : "s")")
             Spacer()
             Text("↩ paste · ⌘1-0 copy")
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
     }
 
     private var rowModels: [PickerRowModel] {
@@ -130,6 +126,13 @@ private struct PickerRowModel: Identifiable {
 }
 
 private struct PickerRowView: View {
+    private enum Metrics {
+        static let shortcutBadgeWidth: CGFloat = 30
+        static let rowActionsWidth: CGFloat = 68
+        static let rowActionSize: CGFloat = 32
+        static let colorSwatchSize: CGFloat = LeafiyDesign.Spacing.l
+    }
+
     let item: ClipboardItem
     let index: Int
     let isSelected: Bool
@@ -141,21 +144,20 @@ private struct PickerRowView: View {
     let onContextDelete: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 6) {
+        HStack(alignment: .center, spacing: LeafiyDesign.Spacing.s) {
             shortcutBadge
             contentColumn
             rowActions
         }
-        .padding(.leading, 10)
-        .padding(.trailing, 8)
-        .padding(.vertical, 8)
-        .frame(minHeight: 58)
+        .padding(.leading, LeafiyDesign.Spacing.m)
+        .padding(.trailing, LeafiyDesign.Spacing.s)
+        .padding(.vertical, LeafiyDesign.Spacing.s)
         .background {
             if isSelected {
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: LeafiyDesign.Radius.control)
                     .fill(Color.accentColor.opacity(0.18))
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, LeafiyDesign.Spacing.xs)
+                    .padding(.vertical, LeafiyDesign.Spacing.xxs)
             }
         }
         .contentShape(Rectangle())
@@ -170,7 +172,7 @@ private struct PickerRowView: View {
             if item.type == .image {
                 imagePreview
             } else {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xs) {
                     rowPreview
                     metadataLine
                 }
@@ -197,14 +199,14 @@ private struct PickerRowView: View {
     }
 
     private var shortcutBadge: some View {
-        HStack(spacing: 1) {
+        HStack(spacing: LeafiyDesign.Spacing.xxs) {
             Image(systemName: "command")
-                .font(.system(size: 10, weight: .medium))
+                .font(.caption2.weight(.medium))
             Text(shortcutLabel ?? "")
                 .font(.caption2.monospacedDigit())
         }
         .foregroundStyle(shortcutLabel == nil ? Color.clear : Color.secondary)
-        .frame(width: 30, alignment: .leading)
+        .frame(width: Metrics.shortcutBadgeWidth, alignment: .leading)
     }
 
     private var shortcutLabel: String? {
@@ -220,7 +222,7 @@ private struct PickerRowView: View {
     }
 
     private var urlPreview: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
             Text(urlDomain)
                 .font(.callout.weight(.semibold))
                 .lineLimit(1)
@@ -234,10 +236,10 @@ private struct PickerRowView: View {
     }
 
     private var imagePreview: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: LeafiyDesign.Spacing.s) {
             ThumbnailView(item: item, loader: thumbnailLoader)
-                .frame(width: 38, height: 38)
-            VStack(alignment: .leading, spacing: 3) {
+                .frame(width: LeafiyDesign.Size.rowIcon, height: LeafiyDesign.Size.rowIcon)
+            VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
                 Text(item.previewText.isEmpty ? "Image" : item.previewText)
                     .font(.callout)
                     .lineLimit(1)
@@ -254,11 +256,11 @@ private struct PickerRowView: View {
     }
 
     private var colorPreview: some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 4)
+        HStack(spacing: LeafiyDesign.Spacing.s) {
+            RoundedRectangle(cornerRadius: LeafiyDesign.Radius.control)
                 .fill(colorSwatch)
-                .frame(width: 16, height: 16)
-                .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(.quaternary))
+                .frame(width: Metrics.colorSwatchSize, height: Metrics.colorSwatchSize)
+                .overlay(RoundedRectangle(cornerRadius: LeafiyDesign.Radius.control).strokeBorder(.quaternary))
             Text(colorText)
                 .font(.callout.monospaced())
                 .lineLimit(1)
@@ -267,11 +269,11 @@ private struct PickerRowView: View {
     }
 
     private var filePreview: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: LeafiyDesign.Spacing.s) {
             Image(nsImage: fileIcon)
                 .resizable()
-                .frame(width: 28, height: 28)
-            VStack(alignment: .leading, spacing: 2) {
+                .frame(width: LeafiyDesign.Size.rowIcon, height: LeafiyDesign.Size.rowIcon)
+            VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
                 Text(fileName)
                     .font(.callout)
                     .lineLimit(1)
@@ -287,7 +289,7 @@ private struct PickerRowView: View {
     }
 
     private var unknownPreview: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: LeafiyDesign.Spacing.s) {
             Image(systemName: "questionmark.square")
                 .foregroundStyle(.secondary)
             Text(unknownLabel)
@@ -297,16 +299,12 @@ private struct PickerRowView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var trailingInfo: some View {
-        EmptyView()
-    }
-
     private var metadataLine: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: LeafiyDesign.Spacing.xs) {
             if item.isPinned {
                 Image(systemName: "pin.fill")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Color.accentColor.opacity(0.8))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
             }
             Text(item.sourceAppName ?? "Unknown")
                 .lineLimit(1)
@@ -315,16 +313,26 @@ private struct PickerRowView: View {
                 .lineLimit(1)
         }
         .font(.caption2)
-        .foregroundStyle(Color.secondary.opacity(0.72))
+        .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var rowActions: some View {
-        HStack(spacing: 4) {
-            RowActionButton(systemImage: "doc.on.clipboard", help: "Send to Clipboard", action: onCopyToClipboard)
-            RowActionButton(systemImage: "trash", help: "Delete", action: onDelete)
+        HStack(spacing: LeafiyDesign.Spacing.xs) {
+            RowActionButton(
+                systemImage: "doc.on.clipboard",
+                help: "Send to Clipboard",
+                size: Metrics.rowActionSize,
+                action: onCopyToClipboard
+            )
+            RowActionButton(
+                systemImage: "trash",
+                help: "Delete",
+                size: Metrics.rowActionSize,
+                action: onDelete
+            )
         }
-        .frame(width: 68, alignment: .trailing)
+        .frame(width: Metrics.rowActionsWidth, alignment: .trailing)
     }
 
     private var metadata: [String: Any] {
@@ -401,6 +409,7 @@ private struct PickerRowView: View {
 private struct RowActionButton: NSViewRepresentable {
     let systemImage: String
     let help: String
+    let size: CGFloat
     let action: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -408,7 +417,11 @@ private struct RowActionButton: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSButton {
-        let button = NSButton(image: NSImage(systemSymbolName: systemImage, accessibilityDescription: help) ?? NSImage(), target: context.coordinator, action: #selector(Coordinator.performAction(_:)))
+        let button = NSButton(
+            image: NSImage(systemSymbolName: systemImage, accessibilityDescription: help) ?? NSImage(),
+            target: context.coordinator,
+            action: #selector(Coordinator.performAction(_:))
+        )
         button.bezelStyle = .inline
         button.isBordered = false
         button.imagePosition = .imageOnly
@@ -417,8 +430,8 @@ private struct RowActionButton: NSViewRepresentable {
         button.toolTip = help
         button.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            button.widthAnchor.constraint(equalToConstant: 32),
-            button.heightAnchor.constraint(equalToConstant: 32)
+            button.widthAnchor.constraint(equalToConstant: size),
+            button.heightAnchor.constraint(equalToConstant: size)
         ])
         return button
     }
