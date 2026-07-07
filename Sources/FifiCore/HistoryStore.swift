@@ -317,7 +317,7 @@ public final class HistoryStore: @unchecked Sendable {
         let orderClause: String
         switch query.sort {
         case .recency:
-            orderClause = "ORDER BY i.is_pinned DESC, i.updated_at DESC"
+            orderClause = "ORDER BY i.updated_at DESC"
         case .mostUsed:
             orderClause = "ORDER BY i.use_count DESC, COALESCE(i.last_used_at, 0) DESC, i.updated_at DESC"
         }

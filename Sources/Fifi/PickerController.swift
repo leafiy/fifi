@@ -3,6 +3,7 @@ import Carbon.HIToolbox
 import FifiCore
 import LeafiyUICore
 import SwiftUI
+@preconcurrency import UserNotifications
 
 // Panel behavior cloned from Maccy's FloatingPanel: a non-activating,
 // titled-but-chromeless panel that takes key status WITHOUT activating the
@@ -17,6 +18,7 @@ final class PickerController {
     private let viewModel: PickerViewModel
     private let panel: PickerPanel
     private let thumbnailLoader: ThumbnailLoader
+    private let quickShareService: QuickShareService
     private let contentView: PickerHostingView<AnyView>
 
     private var localKeyMonitor: Any?
@@ -38,6 +40,7 @@ final class PickerController {
         self.captureCurrentPasteboard = captureCurrentPasteboard
         self.viewModel = PickerViewModel(historyService: historyService)
         self.thumbnailLoader = ThumbnailLoader(blobStore: blobStore)
+        self.quickShareService = QuickShareService(blobStore: blobStore)
         self.contentView = PickerHostingView(
             rootView: AnyView(
                 PickerView(viewModel: viewModel, settingsStore: settingsStore, thumbnailLoader: thumbnailLoader, blobStore: blobStore)
@@ -227,7 +230,66 @@ final class PickerController {
         case .quickLook:
             let urls = PasteboardWriter.filePaths(for: item).map { URL(fileURLWithPath: $0) }
             QuickLookController.shared.preview(urls: urls)
+        case .quickShare:
+            quickShare(item)
         }
+    }
+
+    private func quickShare(_ item: ClipboardItem) {
+        let settings = settingsStore.settings.quickShare
+        NotificationCenter.default.post(
+            name: .fifiQuickShareUploadStatusDidChange,
+            object: nil,
+            userInfo: ["isUploading": true]
+        )
+        Task { [weak self] in
+            defer {
+                NotificationCenter.default.post(
+                    name: .fifiQuickShareUploadStatusDidChange,
+                    object: nil,
+                    userInfo: ["isUploading": false]
+                )
+            }
+            guard let self else { return }
+            do {
+                let result = try await quickShareService.share(item: item, settings: settings)
+                PasteboardWriter.copyQuickShareLinks(result.clipboardText)
+                historyService.markUsed(id: item.id)
+                notifyQuickShareSuccess(linkCount: result.links.count)
+            } catch {
+                presentQuickShareError(error)
+            }
+        }
+    }
+
+    private func notifyQuickShareSuccess(linkCount: Int) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = L("Quick Share complete")
+            content.body = linkCount == 1
+                ? L("Public link copied to clipboard.")
+                : String(format: L("%d public links copied to clipboard."), linkCount)
+            content.sound = .default
+            let request = UNNotificationRequest(
+                identifier: "com.leafiy.fifi.quick-share-complete-\(UUID().uuidString)",
+                content: content,
+                trigger: nil
+            )
+            center.add(request)
+        }
+    }
+
+    private func presentQuickShareError(_ error: Error) {
+        NSLog("Fifi quick share failed: %@", String(describing: error))
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = L("Quick Share failed")
+        alert.informativeText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        alert.addButton(withTitle: L("OK"))
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     private func positionPanel() {

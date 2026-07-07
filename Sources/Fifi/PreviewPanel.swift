@@ -9,6 +9,7 @@ struct PreviewPanel: View {
     let item: ClipboardItem?
     let blobStore: BlobStore
     @ObservedObject var viewModel: PickerViewModel
+    let canQuickShare: Bool
 
     var body: some View {
         Group {
@@ -144,6 +145,12 @@ struct PreviewPanel: View {
             } label: {
                 Label(L("Send to Clipboard"), systemImage: "doc.on.clipboard").frame(maxWidth: .infinity)
             }
+            Button {
+                viewModel.performQuickAction(.quickShare, item: item)
+            } label: {
+                Label(L("Quick Share"), systemImage: "link").frame(maxWidth: .infinity)
+            }
+            .disabled(!canQuickShare)
             switch item.type {
             case .url:
                 Button { viewModel.performQuickAction(.openURL, item: item) } label: {

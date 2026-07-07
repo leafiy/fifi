@@ -19,6 +19,62 @@ public enum SensitiveHandling: String, CaseIterable, Sendable, Codable {
     case autoDelete = "auto_delete"
 }
 
+public enum QuickShareProvider: String, CaseIterable, Sendable, Codable {
+    case s3Compatible = "s3_compatible"
+    case aliyunOSS = "aliyun_oss"
+    case tencentCOS = "tencent_cos"
+    case awsS3 = "aws_s3"
+    case cloudflareR2 = "cloudflare_r2"
+}
+
+public struct QuickShareSettings: Sendable, Equatable, Codable {
+    public var provider: QuickShareProvider
+    public var endpointURL: String
+    public var region: String
+    public var bucket: String
+    public var accessKeyID: String
+    public var secretAccessKey: String
+    public var keyPrefix: String
+
+    public init(
+        provider: QuickShareProvider = .s3Compatible,
+        endpointURL: String = "",
+        region: String = "",
+        bucket: String = "",
+        accessKeyID: String = "",
+        secretAccessKey: String = "",
+        keyPrefix: String = "fifi"
+    ) {
+        self.provider = provider
+        self.endpointURL = endpointURL
+        self.region = region
+        self.bucket = bucket
+        self.accessKeyID = accessKeyID
+        self.secretAccessKey = secretAccessKey
+        self.keyPrefix = keyPrefix
+    }
+
+    public var isConfigured: Bool {
+        !endpointURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !region.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !bucket.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !accessKeyID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !secretAccessKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = QuickShareSettings()
+        provider = try container.decodeIfPresent(QuickShareProvider.self, forKey: .provider) ?? defaults.provider
+        endpointURL = try container.decodeIfPresent(String.self, forKey: .endpointURL) ?? defaults.endpointURL
+        region = try container.decodeIfPresent(String.self, forKey: .region) ?? defaults.region
+        bucket = try container.decodeIfPresent(String.self, forKey: .bucket) ?? defaults.bucket
+        accessKeyID = try container.decodeIfPresent(String.self, forKey: .accessKeyID) ?? defaults.accessKeyID
+        secretAccessKey = try container.decodeIfPresent(String.self, forKey: .secretAccessKey) ?? defaults.secretAccessKey
+        keyPrefix = try container.decodeIfPresent(String.self, forKey: .keyPrefix) ?? defaults.keyPrefix
+    }
+}
+
 public struct PrivacySettings: Sendable, Equatable, Codable {
     /// Skip pasteboard writes marked `org.nspasteboard.ConcealedType`
     /// (password managers). On by default, matching V1 behavior.
@@ -97,6 +153,7 @@ public struct AppSettings: Sendable, Equatable, Codable {
     public var sortOrder: HistorySortOrder
     public var fuzzyRanking: Bool
     public var privacy: PrivacySettings
+    public var quickShare: QuickShareSettings
 
     public init(
         hotkeyShortcut: String = "cmd+shift+v",
@@ -117,7 +174,8 @@ public struct AppSettings: Sendable, Equatable, Codable {
         numberShortcuts: Bool = true,
         sortOrder: HistorySortOrder = .recency,
         fuzzyRanking: Bool = false,
-        privacy: PrivacySettings = PrivacySettings()
+        privacy: PrivacySettings = PrivacySettings(),
+        quickShare: QuickShareSettings = QuickShareSettings()
     ) {
         self.hotkeyShortcut = hotkeyShortcut
         self.selectionBehavior = selectionBehavior
@@ -138,6 +196,7 @@ public struct AppSettings: Sendable, Equatable, Codable {
         self.sortOrder = sortOrder
         self.fuzzyRanking = fuzzyRanking
         self.privacy = privacy
+        self.quickShare = quickShare
     }
 
     // Tolerant decoding: V1 settings JSON lacks every V2 key; missing keys
@@ -164,6 +223,7 @@ public struct AppSettings: Sendable, Equatable, Codable {
         sortOrder = try container.decodeIfPresent(HistorySortOrder.self, forKey: .sortOrder) ?? defaults.sortOrder
         fuzzyRanking = try container.decodeIfPresent(Bool.self, forKey: .fuzzyRanking) ?? defaults.fuzzyRanking
         privacy = try container.decodeIfPresent(PrivacySettings.self, forKey: .privacy) ?? defaults.privacy
+        quickShare = try container.decodeIfPresent(QuickShareSettings.self, forKey: .quickShare) ?? defaults.quickShare
     }
 
     public var cleanupPolicy: CleanupPolicy {

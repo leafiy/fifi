@@ -70,6 +70,19 @@ import FifiCore
         postSelfWrite(pasteboard: pasteboard, item: item, wrote: wrote)
     }
 
+    /// Copies the public URL(s) produced by Quick Share.
+    static func copyQuickShareLinks(_ value: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        let wrote = pasteboard.setString(value, forType: .string)
+        NotificationCenter.default.post(
+            name: .fifiPasteboardDidSelfWrite,
+            object: nil,
+            userInfo: ["changeCount": pasteboard.changeCount]
+        )
+        NSLog("Fifi[pasteboard] quick-share-link ok=%d changeCount=%ld", wrote ? 1 : 0, pasteboard.changeCount)
+    }
+
     /// Reveals the item's first file in Finder.
     static func revealInFinder(_ item: ClipboardItem) {
         let paths = filePaths(for: item)

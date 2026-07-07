@@ -19,6 +19,7 @@ struct PickerRowView: View {
     let density: RowDensity
     let showShortcut: Bool
     let showSourceApp: Bool
+    let canQuickShare: Bool
     let thumbnailLoader: ThumbnailLoader
     let onActivate: () -> Void
     let onCopyToClipboard: () -> Void
@@ -52,6 +53,8 @@ struct PickerRowView: View {
 
     @ViewBuilder private var contextMenu: some View {
         Button(L("Send to Clipboard"), action: onCopyToClipboard)
+        Button(L("Quick Share")) { onQuickAction(.quickShare) }
+            .disabled(!canQuickShare)
         Button(L("Copy as Plain Text")) { onQuickAction(.copyPlainText) }
         Button(item.isPinned ? L("Remove from Favorites") : L("Add to Favorites"), action: onTogglePin)
             .disabled(HistoryService.isMemoryItem(item.id))

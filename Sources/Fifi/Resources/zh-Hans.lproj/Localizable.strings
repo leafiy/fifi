@@ -201,3 +201,36 @@
 "Copy Without Tracking" = "拷贝并移除追踪参数";
 "Reveal in Finder" = "在访达中显示";
 "Quick Look" = "快速查看";
+
+/* Quick Share */
+"Share" = "分享";
+"Quick Share" = "快速分享";
+"Quick Share uploading…" = "快速分享上传中…";
+"Provider" = "服务商";
+"S3-compatible" = "S3 兼容";
+"Alibaba Cloud OSS" = "阿里云 OSS";
+"Tencent Cloud COS" = "腾讯云 COS";
+"AWS S3" = "AWS S3";
+"Cloudflare R2" = "Cloudflare R2";
+"Quick Share uploads the selected item to your public object storage and copies the public URL to the clipboard." = "快速分享会将所选项目上传到你的公开对象存储，并把公网 URL 复制到剪贴板。";
+"Storage account" = "存储账号";
+"Endpoint URL" = "Endpoint URL";
+"Region" = "Region";
+"Bucket" = "Bucket";
+"Access Key" = "Access Key";
+"Secret Key" = "Secret Key";
+"Public URL" = "公网 URL";
+"Object prefix" = "对象前缀";
+"Fifi builds the public URL from Endpoint, Bucket, Object prefix, and the generated filename." = "Fifi 会用 Endpoint、Bucket、对象前缀和自动生成的文件名拼出公网 URL。";
+"Quick guide" = "快速指南";
+"1. Create a bucket or prefix that is public-read.\n2. Create a least-privileged key that can PutObject only to that bucket or prefix.\n3. Fill Endpoint, Region, Bucket, Access Key, Secret Key, and Object prefix.\nExamples: Alibaba OSS endpoint https://oss-cn-hangzhou.aliyuncs.com or https://<bucket>.oss-cn-hangzhou.aliyuncs.com; Tencent COS endpoint https://cos.ap-shanghai.myqcloud.com or https://<bucket>.cos.ap-shanghai.myqcloud.com; AWS S3 endpoint https://s3.us-west-2.amazonaws.com; Cloudflare R2 endpoint https://<account-id>.r2.cloudflarestorage.com with region auto." = "1. 创建一个 public-read 的 bucket 或前缀。\n2. 创建一个最小权限密钥，只允许向这个 bucket 或前缀 PutObject。\n3. 填写 Endpoint、Region、Bucket、Access Key、Secret Key 和对象前缀。\n示例：阿里云 OSS endpoint https://oss-cn-hangzhou.aliyuncs.com 或 https://<bucket>.oss-cn-hangzhou.aliyuncs.com；腾讯云 COS endpoint https://cos.ap-shanghai.myqcloud.com 或 https://<bucket>.cos.ap-shanghai.myqcloud.com；AWS S3 endpoint https://s3.us-west-2.amazonaws.com；Cloudflare R2 endpoint https://<account-id>.r2.cloudflarestorage.com，region 填 auto。";
+"Set up Quick Share storage in Settings first." = "请先在设置中配置快速分享存储。";
+"The Quick Share endpoint URL is invalid." = "快速分享 Endpoint URL 无效。";
+"This item has no shareable payload." = "此项目没有可分享内容。";
+"Quick Share can’t upload folders: %@" = "快速分享不能上传文件夹：%@";
+"Quick Share upload failed with HTTP %d." = "快速分享上传失败，HTTP %d。";
+"Quick Share upload failed with HTTP %1$d: %2$@" = "快速分享上传失败，HTTP %1$d：%2$@";
+"Quick Share failed" = "快速分享失败";
+"Quick Share complete" = "快速分享完成";
+"Public link copied to clipboard." = "公网链接已复制到剪贴板。";
+"%d public links copied to clipboard." = "%d 个公网链接已复制到剪贴板。";

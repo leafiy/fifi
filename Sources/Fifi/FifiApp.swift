@@ -221,6 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cleanupTimer: Timer?
     private var expiryTimer: Timer?
     private var settingsCancellable: AnyCancellable?
+    private var quickShareStatusObserver: NSObjectProtocol?
     private var lastRegisteredShortcut: String?
     private var lastLaunchAtLogin: Bool?
     private var lastPauseState: Bool?
@@ -238,6 +239,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var warnedHotkeyConflict = false
     private var lastAppearance: AppearanceMode?
     private var lastEncryptBlobs: Bool?
+    private var activeQuickShareUploads = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -253,6 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         createStatusItem()
+        observeQuickShareStatus()
 
         // Callbacks must be wired before apply(settings:) registers the hotkey,
         // or a launch-time registration failure fires into nil.
@@ -280,6 +283,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         cleanupTimer?.invalidate()
         expiryTimer?.invalidate()
+        if let quickShareStatusObserver {
+            NotificationCenter.default.removeObserver(quickShareStatusObserver)
+        }
         monitor?.stop()
         hotKeyCenter.unregister()
         database?.close()
@@ -455,11 +461,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func createStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = item.button {
-            let image = Self.fifiImage()?.leafiyMenuBarSized()
-                ?? NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Fifi")
-            image?.isTemplate = false
-            button.image = image
+            button.image = statusItemImage(isUploading: false)
             button.imagePosition = .imageOnly
+            button.toolTip = "Fifi"
             button.target = self
             button.action = #selector(statusItemClicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -524,6 +528,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.showPickerPreviewItem = showPickerPreviewItem
         self.showPickerFiltersItem = showPickerFiltersItem
         updateStatusMenu()
+    }
+
+    private func observeQuickShareStatus() {
+        quickShareStatusObserver = NotificationCenter.default.addObserver(
+            forName: .fifiQuickShareUploadStatusDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            Task { @MainActor in
+                guard let self else { return }
+                let isUploading = notification.userInfo?["isUploading"] as? Bool ?? false
+                if isUploading {
+                    self.activeQuickShareUploads += 1
+                } else {
+                    self.activeQuickShareUploads = max(0, self.activeQuickShareUploads - 1)
+                }
+                self.updateStatusIcon()
+            }
+        }
+    }
+
+    private func updateStatusIcon() {
+        let isUploading = activeQuickShareUploads > 0
+        statusItem?.button?.image = statusItemImage(isUploading: isUploading)
+        statusItem?.button?.toolTip = isUploading ? L("Quick Share uploading…") : "Fifi"
+    }
+
+    private func statusItemImage(isUploading: Bool) -> NSImage? {
+        let base = Self.fifiImage()?.leafiyMenuBarSized()
+            ?? NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Fifi")
+        guard isUploading, let base else {
+            base?.isTemplate = false
+            return base
+        }
+
+        let size = NSSize(width: 22, height: 22)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        base.draw(in: NSRect(x: 1, y: 1, width: 20, height: 20), from: .zero, operation: .sourceOver, fraction: 1)
+
+        let badgeRect = NSRect(x: 11, y: 0, width: 11, height: 11)
+        NSColor.controlAccentColor.setFill()
+        NSBezierPath(ovalIn: badgeRect).fill()
+        NSColor.white.setStroke()
+        let path = NSBezierPath()
+        path.lineWidth = 1.4
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        path.move(to: NSPoint(x: badgeRect.midX, y: badgeRect.minY + 2.2))
+        path.line(to: NSPoint(x: badgeRect.midX, y: badgeRect.maxY - 2.1))
+        path.move(to: NSPoint(x: badgeRect.midX, y: badgeRect.maxY - 2.1))
+        path.line(to: NSPoint(x: badgeRect.minX + 3.2, y: badgeRect.maxY - 4.8))
+        path.move(to: NSPoint(x: badgeRect.midX, y: badgeRect.maxY - 2.1))
+        path.line(to: NSPoint(x: badgeRect.maxX - 3.2, y: badgeRect.maxY - 4.8))
+        path.stroke()
+        image.unlockFocus()
+        image.isTemplate = false
+        return image
     }
 
     private func updateStatusMenu() {
@@ -728,6 +791,7 @@ private struct FifiSettingsView: View {
                     hotkeyRegistrationMessage: appState.hotkeyRegistrationMessage
                 )
                 PickerSettingsPane(settingsStore: settingsStore)
+                ShareSettingsPane(settingsStore: settingsStore)
                 PrivacySettingsPane(settingsStore: settingsStore, appState: appState)
                 StorageSettingsPane(
                     settingsStore: settingsStore,

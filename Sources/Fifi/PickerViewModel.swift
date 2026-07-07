@@ -43,6 +43,7 @@ enum PickerQuickAction {
     case copyColorHex, copyColorRGB, copyColorHSL
     case copyCleanURL, openURL
     case revealInFinder, quickLook
+    case quickShare
 }
 
 @MainActor

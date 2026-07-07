@@ -59,7 +59,7 @@ final class FilteredQueryTests: FifiCoreTestCase {
         )
         XCTAssertEqual(
             try store.items(matching: HistoryQuery(filter: HistoryFilter(since: baseDate.addingTimeInterval(-150))), limit: 10, offset: 0).map(\.id),
-            [terminal.id, image.id]
+            [image.id, terminal.id]
         )
         XCTAssertEqual(
             try store.items(matching: HistoryQuery(filter: HistoryFilter(until: baseDate.addingTimeInterval(-150))), limit: 10, offset: 0).map(\.id),
@@ -71,11 +71,11 @@ final class FilteredQueryTests: FifiCoreTestCase {
         )
         XCTAssertEqual(
             try store.items(matching: HistoryQuery(filter: HistoryFilter(minUseCount: 2)), limit: 10, offset: 0).map(\.id),
-            [terminal.id, image.id]
+            [image.id, terminal.id]
         )
         XCTAssertEqual(
             try store.items(matching: HistoryQuery(sort: .recency), limit: 10, offset: 0).map(\.id),
-            [terminal.id, image.id, safari.id, notes.id]
+            [image.id, terminal.id, safari.id, notes.id]
         )
         XCTAssertEqual(
             try store.items(matching: HistoryQuery(sort: .mostUsed), limit: 10, offset: 0).map(\.id),

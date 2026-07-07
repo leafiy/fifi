@@ -33,7 +33,12 @@ struct PickerView: View {
 
             if showPreview {
                 Divider()
-                PreviewPanel(item: viewModel.selectedItem, blobStore: blobStore, viewModel: viewModel)
+                PreviewPanel(
+                    item: viewModel.selectedItem,
+                    blobStore: blobStore,
+                    viewModel: viewModel,
+                    canQuickShare: settingsStore.settings.quickShare.isConfigured
+                )
                     .frame(width: Self.previewPanelWidth)
                     .frame(maxHeight: .infinity)
             }
@@ -193,6 +198,7 @@ struct PickerView: View {
                                 density: density,
                                 showShortcut: settingsStore.settings.numberShortcuts,
                                 showSourceApp: showSourceApp,
+                                canQuickShare: settingsStore.settings.quickShare.isConfigured,
                                 thumbnailLoader: thumbnailLoader,
                                 onActivate: { viewModel.activate(item: row.item) },
                                 onCopyToClipboard: { viewModel.copyToClipboard(item: row.item) },
