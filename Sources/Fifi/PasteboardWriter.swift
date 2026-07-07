@@ -124,10 +124,10 @@ import FifiCore
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Fifi can’t paste automatically"
-        alert.informativeText = "The item WAS copied — press ⌘V to paste it manually.\n\nFor automatic paste, enable Fifi under System Settings → Privacy & Security → Accessibility. After rebuilding the app you must re-add it (the ad-hoc signature changes every build)."
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "OK")
+        alert.messageText = L("Fifi can’t paste automatically")
+        alert.informativeText = L("The item WAS copied — press ⌘V to paste it manually.\n\nFor automatic paste, enable Fifi under System Settings → Privacy & Security → Accessibility. After rebuilding the app you must re-add it (the ad-hoc signature changes every build).")
+        alert.addButton(withTitle: L("Open System Settings"))
+        alert.addButton(withTitle: L("OK"))
         if alert.runModal() == .alertFirstButtonReturn {
             let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
             NSWorkspace.shared.open(url)

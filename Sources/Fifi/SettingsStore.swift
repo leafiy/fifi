@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import FifiCore
+import LeafiyUICore
 import ServiceManagement
 
 @MainActor
@@ -10,6 +11,14 @@ final class SettingsStore: ObservableObject {
     private let defaults: UserDefaults
     private let key = "app.settings"
 
+
+    nonisolated static func persistedAppLanguage(defaults: UserDefaults = .standard) -> AppLanguage {
+        guard let data = defaults.data(forKey: "app.settings"),
+              let settings = try? JSONDecoder().decode(AppSettings.self, from: data) else {
+            return .system
+        }
+        return AppLanguage(rawValue: settings.appLanguage) ?? .system
+    }
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         if let data = defaults.data(forKey: key) {
@@ -22,6 +31,7 @@ final class SettingsStore: ObservableObject {
         } else {
             settings = AppSettings()
         }
+        applyLocalization()
     }
 
     // MARK: - Persistence
@@ -38,6 +48,20 @@ final class SettingsStore: ObservableObject {
     func update(_ mutate: (inout AppSettings) -> Void) {
         mutate(&settings)
         save()
+        applyLocalization()
+    }
+
+    var appLanguage: AppLanguage {
+        get { AppLanguage(rawValue: settings.appLanguage) ?? .system }
+        set {
+            update { settings in
+                settings.appLanguage = newValue.rawValue
+            }
+        }
+    }
+
+    private func applyLocalization() {
+        LeafiyLocalization.language = appLanguage
     }
 
     // MARK: - Login Item

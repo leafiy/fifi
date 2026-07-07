@@ -1,6 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 import FifiCore
+import LeafiyUICore
 import SwiftUI
 
 // Panel behavior cloned from Maccy's FloatingPanel: a non-activating,
@@ -15,12 +16,15 @@ final class PickerController {
     private let captureCurrentPasteboard: () -> Void
     private let viewModel: PickerViewModel
     private let panel: PickerPanel
+    private let thumbnailLoader: ThumbnailLoader
+    private let contentView: PickerHostingView<AnyView>
 
     private var localKeyMonitor: Any?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
     private var historyObserver: NSObjectProtocol?
     private var lastHideTime: TimeInterval = 0
+    private var languageObserver: NSObjectProtocol?
 
     init(
         historyService: HistoryService,
@@ -33,6 +37,14 @@ final class PickerController {
         self.settingsStore = settingsStore
         self.captureCurrentPasteboard = captureCurrentPasteboard
         self.viewModel = PickerViewModel(historyService: historyService)
+        self.thumbnailLoader = ThumbnailLoader(blobStore: blobStore)
+        self.contentView = PickerHostingView(
+            rootView: AnyView(
+                PickerView(viewModel: viewModel, thumbnailLoader: thumbnailLoader)
+                    .id(settingsStore.appLanguage)
+                    .ignoresSafeArea()
+            )
+        )
 
         let panel = PickerPanel(
             contentRect: NSRect(x: 0, y: 0, width: 420, height: 480),
@@ -40,6 +52,7 @@ final class PickerController {
             backing: .buffered,
             defer: false
         )
+        panel.title = L("Clipboard History")
         panel.animationBehavior = .none
         panel.isFloatingPanel = true
         panel.level = .statusBar
@@ -56,11 +69,6 @@ final class PickerController {
         panel.standardWindowButton(.zoomButton)?.isHidden = true
         self.panel = panel
 
-        let loader = ThumbnailLoader(blobStore: blobStore)
-        let contentView = PickerHostingView(
-            rootView: PickerView(viewModel: viewModel, thumbnailLoader: loader)
-                .ignoresSafeArea()
-        )
         contentView.wantsLayer = true
         contentView.layer?.cornerRadius = 12
         contentView.layer?.masksToBounds = true
@@ -91,6 +99,14 @@ final class PickerController {
             Task { @MainActor in
                 guard let self, self.viewModel.query.isEmpty else { return }
                 self.viewModel.reload()
+            }
+        }
+
+        languageObserver = NotificationCenter.default.addObserver(
+            forName: LeafiyLocalization.languageDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshLocalizedContent()
             }
         }
     }
@@ -300,12 +316,22 @@ final class PickerController {
         }
     }
 
+    private func refreshLocalizedContent() {
+        panel.title = L("Clipboard History")
+        contentView.rootView = AnyView(
+            PickerView(viewModel: viewModel, thumbnailLoader: thumbnailLoader)
+                .id(settingsStore.appLanguage)
+                .ignoresSafeArea()
+        )
+    }
+
     deinit {
         // deinit is nonisolated: touch stored properties directly.
         if let localKeyMonitor { NSEvent.removeMonitor(localKeyMonitor) }
         if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
         if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
         if let historyObserver { NotificationCenter.default.removeObserver(historyObserver) }
+        if let languageObserver { NotificationCenter.default.removeObserver(languageObserver) }
     }
 }
 

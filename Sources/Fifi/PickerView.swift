@@ -37,7 +37,7 @@ struct PickerView: View {
         HStack(spacing: LeafiyDesign.Spacing.s) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
-            TextField("Search clipboard", text: $viewModel.query)
+            TextField(L("Search clipboard"), text: $viewModel.query)
                 .textFieldStyle(.plain)
                 .focused($searchFocused)
         }
@@ -50,7 +50,7 @@ struct PickerView: View {
         if viewModel.items.isEmpty {
             EmptyStateView(
                 systemImage: "clipboard",
-                title: viewModel.query.isEmpty ? "No clipboard history" : "No matches"
+                title: viewModel.query.isEmpty ? L("No clipboard history") : L("No matches")
             )
         } else {
             ScrollViewReader { proxy in
@@ -101,9 +101,9 @@ struct PickerView: View {
 
     private var footer: some View {
         FooterBar {
-            Text("\(viewModel.items.count) item\(viewModel.items.count == 1 ? "" : "s")")
+            Text(String(format: viewModel.items.count == 1 ? L("%d item") : L("%d items"), viewModel.items.count))
             Spacer()
-            Text("↩ paste · ⌘1-0 copy")
+            Text(L("↩ paste · ⌘1-0 copy"))
         }
     }
 
@@ -162,8 +162,8 @@ private struct PickerRowView: View {
         }
         .contentShape(Rectangle())
         .contextMenu {
-            Button("Send to Clipboard", action: onContextCopyToClipboard)
-            Button("Delete", role: .destructive, action: onContextDelete)
+            Button(L("Send to Clipboard"), action: onContextCopyToClipboard)
+            Button(L("Delete"), role: .destructive, action: onContextDelete)
         }
     }
 
@@ -215,7 +215,7 @@ private struct PickerRowView: View {
     }
 
     private var textPreview: some View {
-        Text(item.previewText.isEmpty ? "Empty text" : item.previewText)
+        Text(verbatim: item.previewText.isEmpty ? L("Empty text") : item.previewText)
             .font(PickerSymbolFont.callout)
             .lineLimit(2)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -223,10 +223,10 @@ private struct PickerRowView: View {
 
     private var urlPreview: some View {
         VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
-            Text(urlDomain)
+            Text(verbatim: urlDomain)
                 .font(.callout.weight(.semibold))
                 .lineLimit(1)
-            Text(urlText)
+            Text(verbatim: urlText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -240,11 +240,11 @@ private struct PickerRowView: View {
             ThumbnailView(item: item, loader: thumbnailLoader)
                 .frame(width: LeafiyDesign.Size.rowIcon, height: LeafiyDesign.Size.rowIcon)
             VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
-                Text(item.previewText.isEmpty ? "Image" : item.previewText)
+                Text(verbatim: item.previewText.isEmpty ? L("Image") : item.previewText)
                     .font(.callout)
                     .lineLimit(1)
                 if let dimensions = imageDimensions {
-                    Text(dimensions)
+                    Text(verbatim: dimensions)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -261,7 +261,7 @@ private struct PickerRowView: View {
                 .fill(colorSwatch)
                 .frame(width: Metrics.colorSwatchSize, height: Metrics.colorSwatchSize)
                 .overlay(RoundedRectangle(cornerRadius: LeafiyDesign.Radius.control).strokeBorder(.quaternary))
-            Text(colorText)
+            Text(verbatim: colorText)
                 .font(.callout.monospaced())
                 .lineLimit(1)
         }
@@ -274,11 +274,11 @@ private struct PickerRowView: View {
                 .resizable()
                 .frame(width: LeafiyDesign.Size.rowIcon, height: LeafiyDesign.Size.rowIcon)
             VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
-                Text(fileName)
+                Text(verbatim: fileName)
                     .font(PickerSymbolFont.callout)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Text(filePath)
+                Text(verbatim: filePath)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -292,7 +292,7 @@ private struct PickerRowView: View {
         HStack(spacing: LeafiyDesign.Spacing.s) {
             Image(systemName: "questionmark.square")
                 .foregroundStyle(.secondary)
-            Text(unknownLabel)
+            Text(verbatim: unknownLabel)
                 .font(PickerSymbolFont.callout)
                 .lineLimit(1)
         }
@@ -306,9 +306,9 @@ private struct PickerRowView: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
             }
-            Text(item.sourceAppName ?? "Unknown")
+            Text(verbatim: item.sourceAppName ?? L("Unknown"))
                 .lineLimit(1)
-            Text("·")
+            Text(verbatim: "·")
             Text(Self.relativeDateFormatter.localizedString(for: item.updatedAt, relativeTo: Date()))
                 .lineLimit(1)
         }
@@ -321,13 +321,13 @@ private struct PickerRowView: View {
         HStack(spacing: LeafiyDesign.Spacing.xs) {
             RowActionButton(
                 systemImage: "doc.on.clipboard",
-                help: "Send to Clipboard",
+                help: L("Send to Clipboard"),
                 size: Metrics.rowActionSize,
                 action: onCopyToClipboard
             )
             RowActionButton(
                 systemImage: "trash",
-                help: "Delete",
+                help: L("Delete"),
                 size: Metrics.rowActionSize,
                 action: onDelete
             )
@@ -388,7 +388,7 @@ private struct PickerRowView: View {
             .map(String.init), !first.isEmpty {
             return first
         }
-        return "Unknown item"
+        return L("Unknown item")
     }
 
     private func metadataInt(_ key: String) -> Int? {
