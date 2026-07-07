@@ -455,7 +455,6 @@ private struct FifiSettingsView: View {
             }
             AboutPane(
                 tagline: "A fast, low-resource clipboard history manager for macOS.",
-                links: [AboutPane.PaneLink("Repository", url: URL(string: "http://192.168.52.4:5010/leafiy/fifi")!)],
                 copyright: "© 2026 Leafiy"
             )
         }
