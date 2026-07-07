@@ -21,9 +21,9 @@ struct SettingsView: View {
 
         var windowSize: NSSize {
             switch self {
-            case .general: return NSSize(width: 520, height: 268)
-            case .storage: return NSSize(width: 520, height: 286)
-            case .ignore: return NSSize(width: 520, height: 318)
+            case .general: return NSSize(width: 520, height: 300)
+            case .storage: return NSSize(width: 520, height: 318)
+            case .ignore: return NSSize(width: 520, height: 350)
             }
         }
     }
@@ -65,17 +65,27 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        TabView(selection: $selectedPane) {
-            generalTab
-                .tabItem { Text(Pane.general.title) }
-                .tag(Pane.general)
-            storageTab
-                .tabItem { Text(Pane.storage.title) }
-                .tag(Pane.storage)
-            ignoreTab
-                .tabItem { Text(Pane.ignore.title) }
-                .tag(Pane.ignore)
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Picker("", selection: $selectedPane) {
+                    ForEach(Pane.allCases, id: \.self) { pane in
+                        Text(pane.title).tag(pane)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 264)
+                Spacer()
+            }
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+
+            Divider()
+
+            selectedTab
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             loadHotkeyEditor(from: settingsStore.settings.hotkeyShortcut)
             refreshUsage()
@@ -85,6 +95,17 @@ struct SettingsView: View {
         }
         .onChange(of: selectedPane) { pane in
             onPaneChanged(pane)
+        }
+    }
+
+    @ViewBuilder private var selectedTab: some View {
+        switch selectedPane {
+        case .general:
+            generalTab
+        case .storage:
+            storageTab
+        case .ignore:
+            ignoreTab
         }
     }
 

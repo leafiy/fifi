@@ -21,7 +21,7 @@ final class SettingsWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Fifi Settings"
+        window.title = "Settings"
         window.isReleasedWhenClosed = false
 
         super.init(window: window)
