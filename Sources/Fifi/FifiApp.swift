@@ -16,9 +16,15 @@ struct FifiApp: App {
         LeafiyLocalization.language = SettingsStore.persistedAppLanguage()
     }
     var body: some Scene {
-        // The menu bar icon is an NSStatusItem (see AppDelegate): left click
-        // must open the picker directly and right click the menu, which
-        // MenuBarExtra cannot distinguish.
+        MenuBarExtra {
+            FifiMenuContent(appState: appState)
+                .id(appState.appLanguage)
+        } label: {
+            FifiMenuBarIcon(isUploading: appState.isQuickShareUploading)
+                .id(appState.appLanguage)
+        }
+        .menuBarExtraStyle(.menu)
+
         Settings {
             FifiSettingsView(appState: appState)
                 .id(appState.appLanguage)
@@ -37,9 +43,14 @@ final class FifiAppState: ObservableObject {
     @Published var hotkeyRegistrationMessage: String?
     @Published var appLanguage: AppLanguage = LeafiyLocalization.language
     @Published var dataActionMessage: String?
+    @Published var isQuickShareUploading = false
 
     private var monitorReloadHandler: () -> Void = {}
     private var restoreHandler: (URL) -> Void = { _ in }
+    private var openPickerHandler: () -> Void = {}
+    private var toggleRecordingPauseHandler: () -> Void = {}
+    private var togglePickerPreviewHandler: () -> Void = {}
+    private var togglePickerFiltersHandler: () -> Void = {}
     private var supportDirectory: URL?
 
     private init() {}
@@ -65,6 +76,34 @@ final class FifiAppState: ObservableObject {
 
     func reloadMonitor() {
         monitorReloadHandler()
+    }
+
+    func bindMenuActions(
+        openPicker: @escaping () -> Void,
+        toggleRecordingPause: @escaping () -> Void,
+        togglePickerPreview: @escaping () -> Void,
+        togglePickerFilters: @escaping () -> Void
+    ) {
+        self.openPickerHandler = openPicker
+        self.toggleRecordingPauseHandler = toggleRecordingPause
+        self.togglePickerPreviewHandler = togglePickerPreview
+        self.togglePickerFiltersHandler = togglePickerFilters
+    }
+
+    func openPicker() {
+        openPickerHandler()
+    }
+
+    func toggleRecordingPause() {
+        toggleRecordingPauseHandler()
+    }
+
+    func togglePickerPreview() {
+        togglePickerPreviewHandler()
+    }
+
+    func togglePickerFilters() {
+        togglePickerFiltersHandler()
     }
 
     func clearHistoryKeepingPinned(refresh: (() -> Void)? = nil) {
@@ -204,6 +243,79 @@ final class FifiAppState: ObservableObject {
     }
 }
 
+private struct FifiMenuBarIcon: View {
+    let isUploading: Bool
+    private static let icon = AppDelegate.fifiImage()?.leafiyMenuBarSized()
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            if let icon = Self.icon {
+                Image(nsImage: icon)
+                    .frame(width: LeafiyDesign.Size.menuBarIcon, height: LeafiyDesign.Size.menuBarIcon)
+            }
+            if isUploading {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 6, height: 6)
+                    .overlay(Circle().stroke(.white, lineWidth: 1))
+            }
+        }
+        .frame(width: LeafiyDesign.Size.menuBarIcon, height: LeafiyDesign.Size.menuBarIcon)
+        .accessibilityLabel("Fifi")
+    }
+}
+
+private struct FifiMenuContent: View {
+    @ObservedObject var appState: FifiAppState
+
+    private var settings: AppSettings? {
+        appState.settingsStore?.settings
+    }
+
+    var body: some View {
+        Button(L("Open Picker")) {
+            appState.openPicker()
+        }
+
+        Divider()
+
+        Button(settings?.showPreviewPanel == true ? L("Hide picker preview") : L("Show picker preview")) {
+            appState.togglePickerPreview()
+        }
+        Button(settings?.showPickerFilters == true ? L("Hide filters in picker") : L("Show filters in picker")) {
+            appState.togglePickerFilters()
+        }
+
+        Divider()
+
+        Button(settings?.isRecordingPaused == true ? L("Resume Recording") : L("Pause Recording")) {
+            appState.toggleRecordingPause()
+        }
+        Button(L("Clear History…")) {
+            appState.clearHistoryKeepingPinned()
+        }
+
+        Menu(L("Clear by Type")) {
+            ForEach(ClipItemType.allCases, id: \.rawValue) { type in
+                Button(type.fifiLabel) {
+                    appState.clearHistory(type: type)
+                }
+            }
+        }
+
+        Divider()
+
+        SettingsLink {
+            Text(L("Settings…"))
+        }
+
+        Button(L("Quit Fifi")) {
+            NSApplication.shared.terminate(nil)
+        }
+        .keyboardShortcut("q")
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var database: Database?
@@ -243,9 +355,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        if let image = Self.fifiImage() {
-            NSApp.applicationIconImage = image
-        }
 
         do {
             try configureServices()
@@ -254,7 +363,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        createStatusItem()
         observeQuickShareStatus()
 
         // Callbacks must be wired before apply(settings:) registers the hotkey,
@@ -344,6 +452,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             supportDirectory: supportDirectory,
             monitorReload: { [weak monitor] in monitor?.reloadIgnoreRules() },
             restoreHandler: { [weak self] url in self?.performRestore(from: url) }
+        )
+        appState.bindMenuActions(
+            openPicker: { [weak pickerController] in pickerController?.toggle() },
+            toggleRecordingPause: { [weak settingsStore] in
+                settingsStore?.update { $0.isRecordingPaused.toggle() }
+            },
+            togglePickerPreview: { [weak settingsStore, weak pickerController] in
+                settingsStore?.update { $0.showPreviewPanel.toggle() }
+                pickerController?.resizeToSettings()
+            },
+            togglePickerFilters: { [weak settingsStore] in
+                settingsStore?.update { $0.showPickerFilters.toggle() }
+            }
         )
     }
 
@@ -544,6 +665,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 } else {
                     self.activeQuickShareUploads = max(0, self.activeQuickShareUploads - 1)
                 }
+                self.appState.isQuickShareUploading = self.activeQuickShareUploads > 0
                 self.updateStatusIcon()
             }
         }
@@ -557,19 +679,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func statusItemImage(isUploading: Bool) -> NSImage? {
         let base = Self.fifiImage()?.leafiyMenuBarSized()
-            ?? NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Fifi")
+        base?.accessibilityDescription = "Fifi"
         guard isUploading, let base else {
-            base?.isTemplate = false
             return base
         }
 
-        let size = NSSize(width: 22, height: 22)
+        let size = NSSize(width: LeafiyDesign.Size.menuBarIcon, height: LeafiyDesign.Size.menuBarIcon)
         let image = NSImage(size: size)
         image.lockFocus()
         NSGraphicsContext.current?.imageInterpolation = .high
-        base.draw(in: NSRect(x: 1, y: 1, width: 20, height: 20), from: .zero, operation: .sourceOver, fraction: 1)
+        base.draw(in: NSRect(origin: .zero, size: size), from: .zero, operation: .sourceOver, fraction: 1)
 
-        let badgeRect = NSRect(x: 11, y: 0, width: 11, height: 11)
+        let badgeSize: CGFloat = 8
+        let badgeRect = NSRect(x: size.width - badgeSize, y: 0, width: badgeSize, height: badgeSize)
         NSColor.controlAccentColor.setFill()
         NSBezierPath(ovalIn: badgeRect).fill()
         NSColor.white.setStroke()
