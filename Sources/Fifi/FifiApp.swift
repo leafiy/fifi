@@ -245,7 +245,7 @@ final class FifiAppState: ObservableObject {
 
 private struct FifiMenuBarIcon: View {
     let isUploading: Bool
-    private static let icon = AppDelegate.fifiImage()?.leafiyMenuBarSized()
+    private static let icon = AppDelegate.fifiImage()?.leafiyMenuBarTemplateSized()
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -337,17 +337,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastRegisteredShortcut: String?
     private var lastLaunchAtLogin: Bool?
     private var lastPauseState: Bool?
-    private var statusItem: NSStatusItem?
-    private var statusMenu: NSMenu?
-    private var openPickerItem: NSMenuItem?
-    private var clearHistoryItem: NSMenuItem?
-    private var clearByTypeItem: NSMenuItem?
-    private var clearByTypeMenu: NSMenu?
-    private var settingsItem: NSMenuItem?
-    private var quitItem: NSMenuItem?
-    private var pauseRecordingItem: NSMenuItem?
-    private var showPickerPreviewItem: NSMenuItem?
-    private var showPickerFiltersItem: NSMenuItem?
     private var warnedHotkeyConflict = false
     private var lastAppearance: AppearanceMode?
     private var lastEncryptBlobs: Bool?
@@ -569,86 +558,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = L("Picker shortcut unavailable")
-        alert.informativeText = String(format: L("Fifi couldn’t register “%@” (error %d) — another app probably owns it. You can still open the picker by clicking the Fifi menu bar icon, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically."), shortcut, Int(status))
+        alert.informativeText = String(format: L("Fifi couldn’t register “%@” (error %d) — another app probably owns it. You can still open the picker from the Fifi menu bar menu, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically."), shortcut, Int(status))
         alert.addButton(withTitle: L("OK"))
         alert.runModal()
-    }
-
-    // MARK: - Status item
-
-    /// Left click opens the picker directly; right click (or ⌃-click) shows
-    /// the menu. MenuBarExtra cannot distinguish the two, so this stays an
-    /// NSStatusItem with a transiently attached menu.
-    private func createStatusItem() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        if let button = item.button {
-            button.image = statusItemImage(isUploading: false)
-            button.imagePosition = .imageOnly
-            button.toolTip = "Fifi"
-            button.target = self
-            button.action = #selector(statusItemClicked)
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        }
-
-        let menu = NSMenu()
-        let openPickerItem = NSMenuItem(title: L("Open Picker"), action: #selector(openPickerFromMenu), keyEquivalent: "")
-        openPickerItem.target = self
-        menu.addItem(openPickerItem)
-
-        menu.addItem(.separator())
-
-        let showPickerPreviewItem = NSMenuItem(title: L("Show picker preview"), action: #selector(togglePickerPreview), keyEquivalent: "")
-        showPickerPreviewItem.target = self
-        menu.addItem(showPickerPreviewItem)
-
-        let showPickerFiltersItem = NSMenuItem(title: L("Show filters in picker"), action: #selector(togglePickerFilters), keyEquivalent: "")
-        showPickerFiltersItem.target = self
-        menu.addItem(showPickerFiltersItem)
-
-        menu.addItem(.separator())
-
-        let pauseRecordingItem = NSMenuItem(title: L("Pause Recording"), action: #selector(toggleRecordingPause), keyEquivalent: "")
-        pauseRecordingItem.target = self
-        menu.addItem(pauseRecordingItem)
-
-        let clearHistoryItem = NSMenuItem(title: L("Clear History…"), action: #selector(clearHistoryFromMenu), keyEquivalent: "")
-        clearHistoryItem.target = self
-        menu.addItem(clearHistoryItem)
-
-        let clearByTypeItem = NSMenuItem(title: L("Clear by Type"), action: nil, keyEquivalent: "")
-        let clearByTypeMenu = NSMenu()
-        for type in ClipItemType.allCases {
-            let typeItem = NSMenuItem(title: type.fifiLabel, action: #selector(clearHistoryByType(_:)), keyEquivalent: "")
-            typeItem.target = self
-            typeItem.representedObject = type.rawValue
-            clearByTypeMenu.addItem(typeItem)
-        }
-        clearByTypeItem.submenu = clearByTypeMenu
-        menu.addItem(clearByTypeItem)
-
-        menu.addItem(.separator())
-
-        let settingsItem = NSMenuItem(title: L("Settings…"), action: #selector(openSettingsFromMenu), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-
-        let quitItem = NSMenuItem(title: L("Quit Fifi"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        menu.addItem(quitItem)
-
-        // No permanent item.menu: a left click must reach statusItemClicked to
-        // open the picker; the menu is attached transiently for right clicks.
-        self.statusMenu = menu
-        self.statusItem = item
-        self.openPickerItem = openPickerItem
-        self.clearHistoryItem = clearHistoryItem
-        self.clearByTypeItem = clearByTypeItem
-        self.clearByTypeMenu = clearByTypeMenu
-        self.settingsItem = settingsItem
-        self.quitItem = quitItem
-        self.pauseRecordingItem = pauseRecordingItem
-        self.showPickerPreviewItem = showPickerPreviewItem
-        self.showPickerFiltersItem = showPickerFiltersItem
-        updateStatusMenu()
     }
 
     private func observeQuickShareStatus() {
@@ -666,135 +578,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.activeQuickShareUploads = max(0, self.activeQuickShareUploads - 1)
                 }
                 self.appState.isQuickShareUploading = self.activeQuickShareUploads > 0
-                self.updateStatusIcon()
             }
         }
-    }
-
-    private func updateStatusIcon() {
-        let isUploading = activeQuickShareUploads > 0
-        statusItem?.button?.image = statusItemImage(isUploading: isUploading)
-        statusItem?.button?.toolTip = isUploading ? L("Quick Share uploading…") : "Fifi"
-    }
-
-    private func statusItemImage(isUploading: Bool) -> NSImage? {
-        let base = Self.fifiImage()?.leafiyMenuBarSized()
-        base?.accessibilityDescription = "Fifi"
-        guard isUploading, let base else {
-            return base
-        }
-
-        let size = NSSize(width: LeafiyDesign.Size.menuBarIcon, height: LeafiyDesign.Size.menuBarIcon)
-        let image = NSImage(size: size)
-        image.lockFocus()
-        NSGraphicsContext.current?.imageInterpolation = .high
-        base.draw(in: NSRect(origin: .zero, size: size), from: .zero, operation: .sourceOver, fraction: 1)
-
-        let badgeSize: CGFloat = 8
-        let badgeRect = NSRect(x: size.width - badgeSize, y: 0, width: badgeSize, height: badgeSize)
-        NSColor.controlAccentColor.setFill()
-        NSBezierPath(ovalIn: badgeRect).fill()
-        NSColor.white.setStroke()
-        let path = NSBezierPath()
-        path.lineWidth = 1.4
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
-        path.move(to: NSPoint(x: badgeRect.midX, y: badgeRect.minY + 2.2))
-        path.line(to: NSPoint(x: badgeRect.midX, y: badgeRect.maxY - 2.1))
-        path.move(to: NSPoint(x: badgeRect.midX, y: badgeRect.maxY - 2.1))
-        path.line(to: NSPoint(x: badgeRect.minX + 3.2, y: badgeRect.maxY - 4.8))
-        path.move(to: NSPoint(x: badgeRect.midX, y: badgeRect.maxY - 2.1))
-        path.line(to: NSPoint(x: badgeRect.maxX - 3.2, y: badgeRect.maxY - 4.8))
-        path.stroke()
-        image.unlockFocus()
-        image.isTemplate = false
-        return image
-    }
-
-    private func updateStatusMenu() {
-        guard let settings = settingsStore?.settings else { return }
-        let display = KeyboardShortcutSpec(parsing: settings.hotkeyShortcut)?.display ?? settings.hotkeyShortcut
-        openPickerItem?.title = String(format: L("Open Picker    %@"), display)
-        showPickerPreviewItem?.title = L("Show picker preview")
-        showPickerPreviewItem?.state = settings.showPreviewPanel ? .on : .off
-        showPickerFiltersItem?.title = L("Show filters in picker")
-        showPickerFiltersItem?.state = settings.showPickerFilters ? .on : .off
-        pauseRecordingItem?.title = settings.isRecordingPaused ? L("Resume Recording") : L("Pause Recording")
-        pauseRecordingItem?.state = settings.isRecordingPaused ? .on : .off
-        clearHistoryItem?.title = L("Clear History…")
-        clearByTypeItem?.title = L("Clear by Type")
-        clearByTypeMenu?.items.forEach { item in
-            guard let raw = item.representedObject as? String,
-                  let type = ClipItemType(rawValue: raw) else { return }
-            item.title = type.fifiLabel
-        }
-        settingsItem?.title = L("Settings…")
-        quitItem?.title = L("Quit Fifi")
-    }
-
-    @objc private func statusItemClicked() {
-        let event = NSApp.currentEvent
-        let isMenuClick = event.map { $0.type == .rightMouseUp || $0.modifierFlags.contains(.control) } ?? false
-        if isMenuClick {
-            showStatusMenu()
-        } else {
-            pickerController?.toggle()
-        }
-    }
-
-    private func showStatusMenu() {
-        guard let item = statusItem, let menu = statusMenu else { return }
-        item.menu = menu
-        item.button?.performClick(nil)
-        item.menu = nil
-    }
-
-    @objc private func openPickerFromMenu() {
-        pickerController?.toggle()
-    }
-
-    @objc private func toggleRecordingPause() {
-        settingsStore?.update { settings in
-            settings.isRecordingPaused.toggle()
-        }
-    }
-
-    @objc private func togglePickerPreview() {
-        settingsStore?.update { settings in
-            settings.showPreviewPanel.toggle()
-        }
-        pickerController?.resizeToSettings()
-    }
-
-    @objc private func togglePickerFilters() {
-        settingsStore?.update { settings in
-            settings.showPickerFilters.toggle()
-        }
-    }
-
-    @objc private func clearHistoryFromMenu() {
-        appState.clearHistoryKeepingPinned()
-    }
-
-    @objc private func clearHistoryByType(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String,
-              let type = ClipItemType(rawValue: raw) else { return }
-        appState.clearHistory(type: type)
-    }
-
-    /// Opens the SwiftUI Settings scene from AppKit by performing the
-    /// app-menu "Settings…" item SwiftUI maintains (equivalent to ⌘,);
-    /// falls back to the legacy responder-chain selector.
-    @objc private func openSettingsFromMenu() {
-        NSApp.activate(ignoringOtherApps: true)
-        if let appMenu = NSApp.mainMenu?.items.first?.submenu,
-           let index = appMenu.items.firstIndex(where: {
-               $0.keyEquivalent == "," && $0.keyEquivalentModifierMask == .command
-           }) {
-            appMenu.performActionForItem(at: index)
-            return
-        }
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 
     // MARK: - Settings
@@ -818,7 +603,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyRecordingStateIfNeeded(settings)
         applyAppearanceIfNeeded(settings)
         applyEncryptionIfNeeded(settings)
-        updateStatusMenu()
     }
 
     private func registerHotKeyIfNeeded(_ shortcut: String) {

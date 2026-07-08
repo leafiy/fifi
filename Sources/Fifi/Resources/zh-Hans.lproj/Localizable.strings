@@ -11,7 +11,7 @@
 "Quit" = "退出";
 "Couldn’t register %@ (error %d); another app may already own it." = "无法注册 %@（错误 %d）；可能已被其他 App 占用。";
 "Picker shortcut unavailable" = "选择器快捷键不可用";
-"Fifi couldn’t register “%@” (error %d) — another app probably owns it. You can still open the picker by clicking the Fifi menu bar icon, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically." = "Fifi 无法注册“%@”（错误 %d）——可能已被其他 App 占用。你仍可点击 Fifi 菜单栏图标打开选择器，或在设置中选择其他快捷键。此快捷键只用于打开选择器；使用 ⌘C 拷贝的内容始终会自动记录。";
+"Fifi couldn’t register “%@” (error %d) — another app probably owns it. You can still open the picker from the Fifi menu bar menu, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically." = "Fifi 无法注册“%@”（错误 %d）——可能已被其他 App 占用。你仍可从 Fifi 菜单栏菜单打开选择器，或在设置中选择其他快捷键。此快捷键只用于打开选择器；使用 ⌘C 拷贝的内容始终会自动记录。";
 "OK" = "好";
 "Open Picker" = "打开选择器";
 "Show picker preview" = "显示选择器预览窗口";
