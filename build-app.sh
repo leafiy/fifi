@@ -68,9 +68,8 @@ JSON
     rm -rf "$iconset"
 }
 
-LOCAL_BUILD_ROOT="${LOCAL_BUILD_ROOT:-"${TMPDIR%/}/leafiy-app-builds/fifi"}"
-APP="$LOCAL_BUILD_ROOT/Fifi.app"
-rm -rf "$LOCAL_BUILD_ROOT"
+APP="Fifi.app"
+rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Info.plist "$APP/Contents/Info.plist"
 cp "$BIN_DIR/fifi" "$APP/Contents/MacOS/Fifi"
@@ -99,4 +98,4 @@ else
     codesign --force --sign - "$APP"
 fi
 
-echo "Done: $APP"
+echo "Done: $(pwd)/$APP"
