@@ -245,7 +245,7 @@ final class FifiAppState: ObservableObject {
 
 private struct FifiMenuBarIcon: View {
     let isUploading: Bool
-    private static let icon = AppDelegate.fifiAppIcon()?.leafiyMenuBarSized()
+    private static let icon = AppDelegate.fifiImage()?.leafiyMenuBarSized()
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -653,21 +653,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return image
         }
         return NSImage(named: "Fifi")
-    }
-
-    static func fifiAppIcon() -> NSImage? {
-        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
-           let image = NSImage(contentsOf: url) {
-            image.accessibilityDescription = "Fifi"
-            return image
-        }
-
-        if let image = NSApplication.shared.applicationIconImage,
-           !image.representations.isEmpty {
-            image.accessibilityDescription = "Fifi"
-            return image
-        }
-        return nil
     }
 
     private func warnHotkeyConflict(shortcut: String, status: OSStatus) {
