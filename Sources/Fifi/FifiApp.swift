@@ -151,7 +151,7 @@ final class FifiAppState: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             let export = SettingsExport(
-                settings: settingsStore.settings,
+                settings: settingsStore.sanitizedSettings(),
                 ignoredApps: (try? ignoreRulesStore.ignoredApps()) ?? [],
                 ignoreRegexRules: (try? ignoreRulesStore.regexRules()) ?? [],
                 appPrivacyRules: (try? appPrivacyStore?.rules() ?? []) ?? []
@@ -172,7 +172,7 @@ final class FifiAppState: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             let export = try SettingsCodec.decode(try Data(contentsOf: url))
-            settingsStore.update { $0 = export.settings }
+            settingsStore.replaceSettings(export.settings)
             for app in export.ignoredApps {
                 try? ignoreRulesStore.addIgnoredApp(bundleID: app.bundleID, appName: app.appName)
             }
@@ -404,7 +404,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             historyStore: historyStore,
             databasePath: databaseURL.path,
             blobStore: blobStore,
-            settingsProvider: { settingsStore.settings }
+            settingsProvider: { settingsStore.sanitizedSettings() }
         )
         let monitor = ClipboardMonitor(
             historyStore: historyStore,
@@ -493,23 +493,129 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSLog("Fifi restore: no fifi.sqlite3 in backup folder")
             return
         }
-        monitor?.stop()
-        database?.close()
+
+        let restoreID = UUID().uuidString
+        let staging = supportDirectory.appendingPathComponent(".fifi-restore-\(restoreID)", isDirectory: true)
+        let rollback = supportDirectory.appendingPathComponent("fifi-pre-restore-\(restoreID)", isDirectory: true)
         let liveDB = supportDirectory.appendingPathComponent("fifi.sqlite3")
-        for suffix in ["-wal", "-shm"] {
-            try? fileManager.removeItem(at: URL(fileURLWithPath: liveDB.path + suffix))
-        }
-        try? fileManager.removeItem(at: liveDB)
-        try? fileManager.copyItem(at: backupDB, to: liveDB)
-        for name in ["blobs", "thumbnails"] {
-            let source = folder.appendingPathComponent(name, isDirectory: true)
-            let destination = supportDirectory.appendingPathComponent(name, isDirectory: true)
-            if fileManager.fileExists(atPath: source.path) {
-                try? fileManager.removeItem(at: destination)
-                try? fileManager.copyItem(at: source, to: destination)
+        var liveClosed = false
+
+        do {
+            try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
+            try fileManager.copyItem(at: backupDB, to: staging.appendingPathComponent("fifi.sqlite3"))
+            for name in ["blobs", "thumbnails"] {
+                let source = folder.appendingPathComponent(name, isDirectory: true)
+                let destination = staging.appendingPathComponent(name, isDirectory: true)
+                if fileManager.fileExists(atPath: source.path) {
+                    try fileManager.copyItem(at: source, to: destination)
+                } else {
+                    try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+                }
+            }
+
+            // Validate the copied database before closing the live app state.
+            let stagedDatabase = try Database(path: staging.appendingPathComponent("fifi.sqlite3").path)
+            let issues = try stagedDatabase.integrityCheck()
+            stagedDatabase.close()
+            guard issues.isEmpty else {
+                throw RestoreError.invalidDatabase(issues.joined(separator: "; "))
+            }
+            for suffix in ["-wal", "-shm"] {
+                try? fileManager.removeItem(at: URL(fileURLWithPath: staging.appendingPathComponent("fifi.sqlite3").path + suffix))
+            }
+
+            monitor?.stop()
+            database?.close()
+            liveClosed = true
+            try fileManager.createDirectory(at: rollback, withIntermediateDirectories: true)
+
+            try copyIfPresent(liveDB, to: rollback.appendingPathComponent("fifi.sqlite3"), fileManager: fileManager)
+            for suffix in ["-wal", "-shm"] {
+                try copyIfPresent(
+                    URL(fileURLWithPath: liveDB.path + suffix),
+                    to: rollback.appendingPathComponent("fifi.sqlite3" + suffix),
+                    fileManager: fileManager
+                )
+            }
+            for name in ["blobs", "thumbnails"] {
+                try copyIfPresent(
+                    supportDirectory.appendingPathComponent(name, isDirectory: true),
+                    to: rollback.appendingPathComponent(name, isDirectory: true),
+                    fileManager: fileManager
+                )
+                try? fileManager.removeItem(at: supportDirectory.appendingPathComponent(name, isDirectory: true))
+            }
+            for suffix in ["-wal", "-shm"] {
+                try? fileManager.removeItem(at: URL(fileURLWithPath: liveDB.path + suffix))
+            }
+            try? fileManager.removeItem(at: liveDB)
+            try fileManager.copyItem(at: staging.appendingPathComponent("fifi.sqlite3"), to: liveDB)
+            for name in ["blobs", "thumbnails"] {
+                try fileManager.copyItem(
+                    at: staging.appendingPathComponent(name, isDirectory: true),
+                    to: supportDirectory.appendingPathComponent(name, isDirectory: true)
+                )
+            }
+            try? fileManager.removeItem(at: staging)
+            relaunch()
+        } catch {
+            if liveClosed {
+                do {
+                    try restoreRollback(from: rollback, to: supportDirectory, liveDB: liveDB, fileManager: fileManager)
+                    NSLog("Fifi restore failed; previous data was restored from the rollback copy")
+                } catch {
+                    NSLog("Fifi restore rollback also failed: %@", String(describing: error))
+                }
+            }
+            NSLog("Fifi restore failed: %@", String(describing: error))
+            try? fileManager.removeItem(at: staging)
+            if liveClosed {
+                NSApp.terminate(nil)
             }
         }
-        relaunch()
+    }
+
+    private enum RestoreError: LocalizedError {
+        case invalidDatabase(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidDatabase(let issues): return "backup database integrity check failed: \(issues)"
+            }
+        }
+    }
+
+    private func copyIfPresent(_ source: URL, to destination: URL, fileManager: FileManager) throws {
+        guard fileManager.fileExists(atPath: source.path) else { return }
+        try fileManager.copyItem(at: source, to: destination)
+    }
+
+    private func restoreRollback(
+        from rollback: URL,
+        to supportDirectory: URL,
+        liveDB: URL,
+        fileManager: FileManager
+    ) throws {
+        for suffix in ["", "-wal", "-shm"] {
+            try? fileManager.removeItem(at: URL(fileURLWithPath: liveDB.path + suffix))
+        }
+        for name in ["blobs", "thumbnails"] {
+            try? fileManager.removeItem(at: supportDirectory.appendingPathComponent(name, isDirectory: true))
+        }
+        for suffix in ["", "-wal", "-shm"] {
+            try copyIfPresent(
+                URL(fileURLWithPath: rollback.appendingPathComponent("fifi.sqlite3").path + suffix),
+                to: URL(fileURLWithPath: liveDB.path + suffix),
+                fileManager: fileManager
+            )
+        }
+        for name in ["blobs", "thumbnails"] {
+            try copyIfPresent(
+                rollback.appendingPathComponent(name, isDirectory: true),
+                to: supportDirectory.appendingPathComponent(name, isDirectory: true),
+                fileManager: fileManager
+            )
+        }
     }
 
     private func relaunch() {

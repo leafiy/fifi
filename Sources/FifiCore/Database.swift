@@ -83,7 +83,11 @@ public final class Database: @unchecked Sendable {
         defer { lock.unlock() }
         let destination = try requireHandle()
         var sourceHandle: OpaquePointer?
-        let openResult = sqlite3_open_v2(path, &sourceHandle, SQLITE_OPEN_READONLY, nil)
+        // A backup produced from a WAL database may need to create its
+        // -wal/-shm sidecars while SQLite opens it. READWRITE is required for
+        // that recovery step; the source file is never modified by the backup
+        // API itself.
+        let openResult = sqlite3_open_v2(path, &sourceHandle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nil)
         guard openResult == SQLITE_OK, let sourceHandle else {
             if let sourceHandle { sqlite3_close(sourceHandle) }
             throw DatabaseError(code: openResult, message: "Unable to open backup at \(path)")

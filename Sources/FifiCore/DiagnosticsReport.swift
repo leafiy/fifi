@@ -75,9 +75,12 @@ public enum Diagnostics {
         let counts = (try? historyStore.countsByType()) ?? [:]
         let settingsJSON: String
         do {
+            var safeSettings = settings
+            safeSettings.quickShare.accessKeyID = ""
+            safeSettings.quickShare.secretAccessKey = ""
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            settingsJSON = String(data: try encoder.encode(settings), encoding: .utf8) ?? "{}"
+            settingsJSON = String(data: try encoder.encode(safeSettings), encoding: .utf8) ?? "{}"
         } catch {
             settingsJSON = "unavailable: \(error)"
         }
