@@ -44,6 +44,7 @@ hdiutil detach "$MOUNT_POINT" -quiet
 
 # Register with LaunchServices so Launchpad/Spotlight pick it up immediately.
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$DEST/Fifi.app" || true
+mdimport "$DEST/Fifi.app" >/dev/null 2>&1 || true
 
 echo "installed: $DEST/Fifi.app"
 open "$DEST/Fifi.app"
