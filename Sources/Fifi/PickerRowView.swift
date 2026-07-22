@@ -48,6 +48,7 @@ struct PickerRowView: View {
             }
         }
         .contentShape(Rectangle())
+        .onTapGesture(count: 2, perform: onActivate)
         .contextMenu { contextMenu }
     }
 
