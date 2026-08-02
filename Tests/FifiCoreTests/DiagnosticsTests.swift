@@ -1,4 +1,5 @@
 import XCTest
+import LeafiyUICore
 @testable import FifiCore
 
 final class DiagnosticsTests: FifiCoreTestCase {
@@ -7,6 +8,7 @@ final class DiagnosticsTests: FifiCoreTestCase {
         let blobStore = try makeBlobStore()
         let settings = AppSettings(
             quickShare: QuickShareSettings(
+                provider: .s3,
                 endpointURL: "https://objects.example.test",
                 region: "us-east-1",
                 bucket: "private-bucket",

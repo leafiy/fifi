@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import LeafiyUICore
 @testable import FifiCore
 
 final class AppSettingsTests: XCTestCase {
@@ -38,19 +39,19 @@ final class AppSettingsTests: XCTestCase {
     func testEncodingRoundTripPreservesQuickShareSettings() throws {
         let settings = AppSettings(
             quickShare: QuickShareSettings(
-                provider: .aliyunOSS,
+                provider: .s3,
                 endpointURL: "https://oss-cn-hangzhou.aliyuncs.com",
                 region: "cn-hangzhou",
                 bucket: "public-bucket",
+                keyPrefix: "clips",
                 accessKeyID: "key",
-                secretAccessKey: "secret",
-                keyPrefix: "clips"
+                secretAccessKey: "secret"
             )
         )
 
         let decoded = try JSONDecoder().decode(AppSettings.self, from: try JSONEncoder().encode(settings))
 
-        XCTAssertEqual(decoded.quickShare.provider, .aliyunOSS)
+        XCTAssertEqual(decoded.quickShare.provider, .s3)
         XCTAssertEqual(decoded.quickShare.endpointURL, "https://oss-cn-hangzhou.aliyuncs.com")
         XCTAssertEqual(decoded.quickShare.region, "cn-hangzhou")
         XCTAssertEqual(decoded.quickShare.bucket, "public-bucket")

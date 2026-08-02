@@ -16,11 +16,10 @@ Fifi is a fast, low-resource clipboard history manager for macOS. It lives in th
 
 ## Privacy and Control
 
-- Clipboard history is stored locally on your Mac
+- Clipboard history, settings, and Quick Share credentials are stored locally as plaintext
 - Password-manager content is ignored
 - Sensitive-content detection can skip or automatically remove selected items
 - Private mode keeps new captures in memory only
-- Optional local encryption protects images and large text entries
 - Per-app rules let you exclude apps from recording
 
 ## Performance

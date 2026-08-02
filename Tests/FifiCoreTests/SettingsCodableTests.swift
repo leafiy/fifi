@@ -62,8 +62,7 @@ final class SettingsCodableTests: XCTestCase {
                 detectVerificationCodes: true,
                 handling: .ignore,
                 autoDeleteSeconds: 15,
-                privateMode: true,
-                encryptBlobs: true
+                privateMode: true
             )
         )
 
@@ -92,8 +91,7 @@ final class SettingsCodableTests: XCTestCase {
             detectVerificationCodes: true,
             handling: .ignore,
             autoDeleteSeconds: 9,
-            privateMode: true,
-            encryptBlobs: true
+            privateMode: true
         )
         let data = try JSONEncoder().encode(settings)
 

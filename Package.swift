@@ -2,22 +2,29 @@
 import PackageDescription
 
 var products: [Product] = []
-var dependencies: [Package.Dependency] = []
+var dependencies: [Package.Dependency] = [
+    .package(path: "../leafiy-ui")
+]
 var targets: [Target] = [
     .systemLibrary(name: "CSQLite", path: "Sources/CSQLite"),
     .target(
         name: "FifiCore",
-        dependencies: ["CSQLite"]
+        dependencies: [
+            "CSQLite",
+            .product(name: "LeafiyUICore", package: "leafiy-ui")
+        ]
     ),
     .testTarget(
         name: "FifiCoreTests",
-        dependencies: ["FifiCore"]
+        dependencies: [
+            "FifiCore",
+            .product(name: "LeafiyUICore", package: "leafiy-ui")
+        ]
     )
 ]
 
 // The app target needs AppKit/SwiftUI; FifiCore + tests also build on Linux.
 #if os(macOS)
-dependencies.append(.package(path: "../leafiy-ui"))
 products.append(.executable(name: "fifi", targets: ["Fifi"]))
 targets.append(
     .executableTarget(
@@ -29,6 +36,15 @@ targets.append(
         ],
         path: "Sources/Fifi",
         resources: [.process("Resources")]
+    )
+)
+targets.append(
+    .testTarget(
+        name: "FifiTests",
+        dependencies: [
+            "Fifi",
+            .product(name: "LeafiyUICore", package: "leafiy-ui")
+        ]
     )
 )
 #endif

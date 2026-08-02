@@ -1,4 +1,5 @@
 import Foundation
+import LeafiyUICore
 
 public enum SelectionBehavior: String, CaseIterable, Sendable, Codable {
     case paste, copy
@@ -19,62 +20,6 @@ public enum SensitiveHandling: String, CaseIterable, Sendable, Codable {
     case autoDelete = "auto_delete"
 }
 
-public enum QuickShareProvider: String, CaseIterable, Sendable, Codable {
-    case s3Compatible = "s3_compatible"
-    case aliyunOSS = "aliyun_oss"
-    case tencentCOS = "tencent_cos"
-    case awsS3 = "aws_s3"
-    case cloudflareR2 = "cloudflare_r2"
-}
-
-public struct QuickShareSettings: Sendable, Equatable, Codable {
-    public var provider: QuickShareProvider
-    public var endpointURL: String
-    public var region: String
-    public var bucket: String
-    public var accessKeyID: String
-    public var secretAccessKey: String
-    public var keyPrefix: String
-
-    public init(
-        provider: QuickShareProvider = .s3Compatible,
-        endpointURL: String = "",
-        region: String = "",
-        bucket: String = "",
-        accessKeyID: String = "",
-        secretAccessKey: String = "",
-        keyPrefix: String = "fifi"
-    ) {
-        self.provider = provider
-        self.endpointURL = endpointURL
-        self.region = region
-        self.bucket = bucket
-        self.accessKeyID = accessKeyID
-        self.secretAccessKey = secretAccessKey
-        self.keyPrefix = keyPrefix
-    }
-
-    public var isConfigured: Bool {
-        !endpointURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !region.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !bucket.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !accessKeyID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !secretAccessKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let defaults = QuickShareSettings()
-        provider = try container.decodeIfPresent(QuickShareProvider.self, forKey: .provider) ?? defaults.provider
-        endpointURL = try container.decodeIfPresent(String.self, forKey: .endpointURL) ?? defaults.endpointURL
-        region = try container.decodeIfPresent(String.self, forKey: .region) ?? defaults.region
-        bucket = try container.decodeIfPresent(String.self, forKey: .bucket) ?? defaults.bucket
-        accessKeyID = try container.decodeIfPresent(String.self, forKey: .accessKeyID) ?? defaults.accessKeyID
-        secretAccessKey = try container.decodeIfPresent(String.self, forKey: .secretAccessKey) ?? defaults.secretAccessKey
-        keyPrefix = try container.decodeIfPresent(String.self, forKey: .keyPrefix) ?? defaults.keyPrefix
-    }
-}
-
 public struct PrivacySettings: Sendable, Equatable, Codable {
     /// Skip pasteboard writes marked `org.nspasteboard.ConcealedType`
     /// (password managers). On by default, matching V1 behavior.
@@ -86,8 +31,6 @@ public struct PrivacySettings: Sendable, Equatable, Codable {
     public var autoDeleteSeconds: Int
     /// Captures are kept in memory only and never written to disk.
     public var privateMode: Bool
-    /// Encrypt blob payloads (images, large text) at rest.
-    public var encryptBlobs: Bool
 
     public init(
         skipConcealed: Bool = true,
@@ -96,8 +39,7 @@ public struct PrivacySettings: Sendable, Equatable, Codable {
         detectVerificationCodes: Bool = false,
         handling: SensitiveHandling = .autoDelete,
         autoDeleteSeconds: Int = 60,
-        privateMode: Bool = false,
-        encryptBlobs: Bool = false
+        privateMode: Bool = false
     ) {
         self.skipConcealed = skipConcealed
         self.detectCreditCards = detectCreditCards
@@ -106,7 +48,6 @@ public struct PrivacySettings: Sendable, Equatable, Codable {
         self.handling = handling
         self.autoDeleteSeconds = autoDeleteSeconds
         self.privateMode = privateMode
-        self.encryptBlobs = encryptBlobs
     }
 
     public var detectionOptions: SensitiveDetectionOptions {
@@ -129,11 +70,10 @@ public struct PrivacySettings: Sendable, Equatable, Codable {
         handling = try container.decodeIfPresent(SensitiveHandling.self, forKey: .handling) ?? defaults.handling
         autoDeleteSeconds = try container.decodeIfPresent(Int.self, forKey: .autoDeleteSeconds) ?? defaults.autoDeleteSeconds
         privateMode = try container.decodeIfPresent(Bool.self, forKey: .privateMode) ?? defaults.privateMode
-        encryptBlobs = try container.decodeIfPresent(Bool.self, forKey: .encryptBlobs) ?? defaults.encryptBlobs
     }
 }
 
-public struct AppSettings: Sendable, Equatable, Codable {
+public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
     public var hotkeyShortcut: String
     public var selectionBehavior: SelectionBehavior
     public var maxHistoryCount: Int
@@ -155,6 +95,8 @@ public struct AppSettings: Sendable, Equatable, Codable {
     public var privacy: PrivacySettings
     public var quickShare: QuickShareSettings
 
+    public static var defaults: AppSettings { AppSettings() }
+
     public init(
         hotkeyShortcut: String = "cmd+shift+v",
         selectionBehavior: SelectionBehavior = .paste,
@@ -175,7 +117,7 @@ public struct AppSettings: Sendable, Equatable, Codable {
         sortOrder: HistorySortOrder = .recency,
         fuzzyRanking: Bool = false,
         privacy: PrivacySettings = PrivacySettings(),
-        quickShare: QuickShareSettings = QuickShareSettings()
+        quickShare: QuickShareSettings = QuickShareSettings(keyPrefix: "fifi")
     ) {
         self.hotkeyShortcut = hotkeyShortcut
         self.selectionBehavior = selectionBehavior

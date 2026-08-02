@@ -245,23 +245,16 @@ final class FifiAppState: ObservableObject {
 
 private struct FifiMenuBarIcon: View {
     let isUploading: Bool
-    private static let icon = AppDelegate.fifiImage()?.leafiyMenuBarSized()
+
+    private static let baseIcon = LeafiyMenuBarIconRenderer.baseIcon(
+        AppDelegate.fifiImage(),
+        symbolFallback: "clipboard",
+        accessibilityDescription: "Fifi"
+    )
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            if let icon = Self.icon {
-                Image(nsImage: icon)
-                    .frame(width: LeafiyDesign.Size.menuBarIcon, height: LeafiyDesign.Size.menuBarIcon)
-            }
-            if isUploading {
-                Circle()
-                    .fill(Color.accentColor)
-                    .frame(width: 6, height: 6)
-                    .overlay(Circle().stroke(.white, lineWidth: 1))
-            }
-        }
-        .frame(width: LeafiyDesign.Size.menuBarIcon, height: LeafiyDesign.Size.menuBarIcon)
-        .accessibilityLabel("Fifi")
+        Image(nsImage: LeafiyMenuBarIconRenderer.image(base: Self.baseIcon, status: isUploading ? .busy : .idle))
+            .accessibilityLabel(Text(verbatim: "Fifi"))
     }
 }
 
@@ -303,17 +296,7 @@ private struct FifiMenuContent: View {
             }
         }
 
-        Divider()
-
-        SoftwareUpdateMenuButton()
-        Button(L("Settings…")) {
-            LeafiySettingsWindow.open()
-        }
-
-        Button(L("Quit Fifi")) {
-            NSApplication.shared.terminate(nil)
-        }
-        .keyboardShortcut("q")
+        LeafiyMenuTail()
     }
 }
 
@@ -327,7 +310,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsStore: SettingsStore?
     private var historyService: HistoryService?
     private var monitor: ClipboardMonitor?
-    private let hotKeyCenter = HotKeyCenter()
+    private let hotKeyCenter = LeafiyHotKeyCenter(signature: "FIFI")
     private var pickerController: PickerController?
 
     private let appState = FifiAppState.shared
@@ -340,8 +323,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastPauseState: Bool?
     private var warnedHotkeyConflict = false
     private var lastAppearance: AppearanceMode?
-    private var lastEncryptBlobs: Bool?
     private var activeQuickShareUploads = 0
+    private enum HotKeyID {
+        static let picker: UInt32 = 1
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         SoftwareUpdateController.shared.startAutomaticCheck()
@@ -356,18 +341,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         observeQuickShareStatus()
 
-        // Callbacks must be wired before apply(settings:) registers the hotkey,
-        // or a launch-time registration failure fires into nil.
-        hotKeyCenter.onActivate = { [weak self] in
-            // Called synchronously from the Carbon handler on the main thread;
-            // stay synchronous so activation keeps its user-event context.
+        // The registration-failure callback must be wired before apply(settings:)
+        // registers the hotkey, or a launch-time conflict has nowhere to report.
+        hotKeyCenter.onRegisterFailed = { [weak self] shortcut in
             MainActor.assumeIsolated {
-                self?.pickerController?.toggle()
-            }
-        }
-        hotKeyCenter.onRegisterFailed = { [weak self] shortcut, status in
-            MainActor.assumeIsolated {
-                self?.warnHotkeyConflict(shortcut: shortcut, status: status)
+                self?.warnHotkeyConflict(shortcut: shortcut)
             }
         }
 
@@ -386,7 +364,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NotificationCenter.default.removeObserver(quickShareStatusObserver)
         }
         monitor?.stop()
-        hotKeyCenter.unregister()
+        hotKeyCenter.unregisterAll()
         database?.close()
     }
 
@@ -657,16 +635,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return NSImage(named: "Fifi")
     }
 
-    private func warnHotkeyConflict(shortcut: String, status: OSStatus) {
-        let display = KeyboardShortcutSpec(parsing: shortcut)?.display ?? shortcut
-        appState.hotkeyRegistrationMessage = String(format: L("Couldn’t register %@ (error %d); another app may already own it."), display, Int(status))
+    private func warnHotkeyConflict(shortcut: KeyboardShortcutSpec) {
+        let display = shortcut.display
+        appState.hotkeyRegistrationMessage = String(format: L("Couldn’t register %@; another app may already own it."), display)
         guard !warnedHotkeyConflict else { return }
         warnedHotkeyConflict = true
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = L("Picker shortcut unavailable")
-        alert.informativeText = String(format: L("Fifi couldn’t register “%@” (error %d) — another app probably owns it. You can still open the picker from the Fifi menu bar menu, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically."), shortcut, Int(status))
+        alert.informativeText = String(format: L("Fifi couldn’t register “%@” — another app probably owns it. You can still open the picker from the Fifi menu bar menu, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically."), display)
         alert.addButton(withTitle: L("OK"))
         alert.runModal()
     }
@@ -710,26 +688,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyLaunchAtLoginIfNeeded(settings)
         applyRecordingStateIfNeeded(settings)
         applyAppearanceIfNeeded(settings)
-        applyEncryptionIfNeeded(settings)
     }
 
     private func registerHotKeyIfNeeded(_ shortcut: String) {
         guard lastRegisteredShortcut != shortcut else { return }
         lastRegisteredShortcut = shortcut
         appState.hotkeyRegistrationMessage = nil
-        hotKeyCenter.unregister()
-        guard HotKeyCenter.isShortcutSupported(shortcut) else {
+        hotKeyCenter.unregister(id: HotKeyID.picker)
+        guard let spec = KeyboardShortcutSpec(parsing: shortcut),
+              LeafiyHotKeyCenter.isShortcutSupported(spec)
+        else {
             appState.hotkeyRegistrationMessage = L("Unsupported shortcut. Choose two modifiers and one letter or number.")
             NSLog("Unsupported hotkey shortcut: \(shortcut)")
             return
         }
-        hotKeyCenter.register(shortcut: shortcut)
+        hotKeyCenter.register(id: HotKeyID.picker, shortcut: spec) { [weak self] in
+            // Called synchronously from the Carbon handler on the main thread;
+            // stay synchronous so activation keeps its user-event context.
+            MainActor.assumeIsolated {
+                self?.pickerController?.toggle()
+            }
+        }
     }
 
     private func applyLaunchAtLoginIfNeeded(_ settings: AppSettings) {
         guard lastLaunchAtLogin != settings.launchAtLogin else { return }
         lastLaunchAtLogin = settings.launchAtLogin
-        settingsStore?.applyLaunchAtLogin()
+        LeafiyLaunchAtLogin.setEnabled(settings.launchAtLogin)
     }
 
     private func applyRecordingStateIfNeeded(_ settings: AppSettings) {
@@ -749,24 +734,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .system: NSApp.appearance = nil
         case .light: NSApp.appearance = NSAppearance(named: .aqua)
         case .dark: NSApp.appearance = NSAppearance(named: .darkAqua)
-        }
-    }
-
-    private func applyEncryptionIfNeeded(_ settings: AppSettings) {
-        guard lastEncryptBlobs != settings.privacy.encryptBlobs else { return }
-        lastEncryptBlobs = settings.privacy.encryptBlobs
-        guard let blobStore else { return }
-        if settings.privacy.encryptBlobs {
-            do {
-                blobStore.setCipher(try EncryptionKeyStore.makeCipher())
-                NSLog("Fifi blob encryption enabled")
-            } catch {
-                NSLog("Fifi failed to enable blob encryption: \(String(describing: error))")
-            }
-        } else {
-            // New writes go out plaintext; already-encrypted blobs remain
-            // readable because the key stays in the Keychain.
-            blobStore.setCipher(nil)
         }
     }
 
@@ -837,29 +804,23 @@ private struct GeneralSettingsPane: View {
     let hotkeyRegistrationMessage: String?
 
     var body: some View {
-        SettingsPane(L("General"), systemImage: "gearshape", height: 320) {
-            Section {
-                LanguagePicker(selection: appLanguageBinding)
+        LeafiyGeneralPane(
+            language: appLanguageBinding,
+            launchAtLogin: launchAtLoginBinding
+        ) {
+            LabeledContent(L("Global shortcut")) {
+                ShortcutField(spec: shortcutBinding)
             }
-            Section(L("Shortcut")) {
-                LabeledContent(L("Global shortcut")) {
-                    ShortcutField(spec: shortcutBinding)
-                }
-                shortcutCaption
+            shortcutCaption
+        } tail: {
+            Picker(L("On selection"), selection: selectionBehaviorBinding) {
+                Text(L("Paste immediately")).tag(SelectionBehavior.paste)
+                Text(L("Copy only")).tag(SelectionBehavior.copy)
             }
-            Section(L("Behavior")) {
-                Picker(L("On selection"), selection: selectionBehaviorBinding) {
-                    Text(L("Paste immediately")).tag(SelectionBehavior.paste)
-                    Text(L("Copy only")).tag(SelectionBehavior.copy)
-                }
-                Toggle(L("Launch at login"), isOn: launchAtLoginBinding)
-            }
-            Section(L("Appearance")) {
-                Picker(L("Theme"), selection: appearanceBinding) {
-                    Text(L("System")).tag(AppearanceMode.system)
-                    Text(L("Light")).tag(AppearanceMode.light)
-                    Text(L("Dark")).tag(AppearanceMode.dark)
-                }
+            Picker(L("Theme"), selection: appearanceBinding) {
+                Text(L("System")).tag(AppearanceMode.system)
+                Text(L("Light")).tag(AppearanceMode.light)
+                Text(L("Dark")).tag(AppearanceMode.dark)
             }
         }
     }

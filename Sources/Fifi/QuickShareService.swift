@@ -1,15 +1,26 @@
 import AppKit
-import CryptoKit
 import FifiCore
 import Foundation
+import LeafiyUICore
 import UniformTypeIdentifiers
 
-enum QuickShareError: LocalizedError {
+enum FifiQuickShareError: LocalizedError {
     case notConfigured
     case invalidEndpoint
     case missingPayload
     case foldersUnsupported(String)
     case uploadFailed(Int, String)
+
+    init(_ sharedError: QuickShareError) {
+        switch sharedError {
+        case .notConfigured:
+            self = .notConfigured
+        case .invalidEndpoint:
+            self = .invalidEndpoint
+        case .uploadFailed(let status, let body):
+            self = .uploadFailed(status, body)
+        }
+    }
 
     var errorDescription: String? {
         switch self {
@@ -55,16 +66,24 @@ final class QuickShareService {
     }
 
     func share(item: ClipboardItem, settings: QuickShareSettings) async throws -> QuickShareUploadResult {
-        guard settings.isConfigured else { throw QuickShareError.notConfigured }
-        let config = try UploadConfig(settings: settings)
+        guard settings.isConfigured else { throw FifiQuickShareError.notConfigured }
         let payloads = try payloads(for: item)
-        guard !payloads.isEmpty else { throw QuickShareError.missingPayload }
+        guard !payloads.isEmpty else { throw FifiQuickShareError.missingPayload }
 
+        let uploader = QuickShareUploader(settings: settings, session: session)
         var links: [String] = []
         for (index, payload) in payloads.enumerated() {
-            let key = objectKey(for: item, payload: payload, index: payloads.count == 1 ? nil : index, prefix: config.keyPrefix)
-            try await upload(payload: payload, key: key, config: config)
-            links.append(config.objectURL(for: key).absoluteString)
+            let filename = objectFilename(for: item, payload: payload, index: payloads.count == 1 ? nil : index)
+            do {
+                let url = try await uploader.upload(
+                    data: payload.data,
+                    filename: filename,
+                    contentType: payload.contentType
+                )
+                links.append(url.absoluteString)
+            } catch let error as QuickShareError {
+                throw FifiQuickShareError(error)
+            }
         }
         return QuickShareUploadResult(links: links)
     }
@@ -72,7 +91,7 @@ final class QuickShareService {
     private func payloads(for item: ClipboardItem) throws -> [QuickSharePayload] {
         switch item.type {
         case .image:
-            guard let blobPath = item.blobPath else { throw QuickShareError.missingPayload }
+            guard let blobPath = item.blobPath else { throw FifiQuickShareError.missingPayload }
             let data = try blobStore.data(atRelativePath: blobPath)
             let ext = URL(fileURLWithPath: blobPath).pathExtension.nilIfEmpty ?? "png"
             return [
@@ -89,7 +108,7 @@ final class QuickShareService {
             }
         case .text, .richText, .url, .color, .unknown:
             let value = text(for: item)
-            guard !value.isEmpty else { throw QuickShareError.missingPayload }
+            guard !value.isEmpty else { throw FifiQuickShareError.missingPayload }
             return [
                 QuickSharePayload(
                     data: Data(value.utf8),
@@ -120,10 +139,10 @@ final class QuickShareService {
     private func filePayload(path: String) throws -> QuickSharePayload {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else {
-            throw QuickShareError.missingPayload
+            throw FifiQuickShareError.missingPayload
         }
         if isDirectory.boolValue {
-            throw QuickShareError.foldersUnsupported(path)
+            throw FifiQuickShareError.foldersUnsupported(path)
         }
         let url = URL(fileURLWithPath: path)
         let data = try Data(contentsOf: url)
@@ -136,42 +155,13 @@ final class QuickShareService {
         )
     }
 
-    private func upload(payload: QuickSharePayload, key: String, config: UploadConfig) async throws {
-        var request = URLRequest(url: config.uploadURL(for: key))
-        request.httpMethod = "PUT"
-        request.httpBody = payload.data
-        request.setValue(payload.contentType, forHTTPHeaderField: "Content-Type")
-        request.setValue(String(payload.data.count), forHTTPHeaderField: "Content-Length")
-
-        let signedHeaders = S3Signer.signedHeaders(
-            method: "PUT",
-            url: request.url!,
-            body: payload.data,
-            accessKeyID: config.accessKeyID,
-            secretAccessKey: config.secretAccessKey,
-            region: config.region
-        )
-        for (field, value) in signedHeaders {
-            request.setValue(value, forHTTPHeaderField: field)
-        }
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { return }
-        guard (200..<300).contains(http.statusCode) else {
-            let body = String(data: data.prefix(400), encoding: .utf8) ?? ""
-            throw QuickShareError.uploadFailed(http.statusCode, body)
-        }
-    }
-
-    private func objectKey(for item: ClipboardItem, payload: QuickSharePayload, index: Int?, prefix: String) -> String {
+    private func objectFilename(for item: ClipboardItem, payload: QuickSharePayload, index: Int?) -> String {
         let timestamp = Self.timestampFormatter.string(from: Date())
         var base = "\(timestamp)-\(item.id)-\(sanitized(payload.filenameBase))"
         if let index {
             base += "-\(index + 1)"
         }
-        let filename = "\(base).\(sanitizedExtension(payload.fileExtension))"
-        guard !prefix.isEmpty else { return filename }
-        return "\(prefix)/\(filename)"
+        return "\(base).\(sanitizedExtension(payload.fileExtension))"
     }
 
     private func filenameBase(for item: ClipboardItem) -> String {
@@ -210,6 +200,7 @@ final class QuickShareService {
         UTType(filenameExtension: ext)?.preferredMIMEType
     }
 
+
     private static let timestampFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
@@ -219,231 +210,12 @@ final class QuickShareService {
         return formatter
     }()
 }
-
-private struct UploadConfig {
-    let endpoint: URL
-    let region: String
-    let bucket: String
-    let accessKeyID: String
-    let secretAccessKey: String
-    let keyPrefix: String
-    let provider: QuickShareProvider
-
-    init(settings: QuickShareSettings) throws {
-        let endpointText = Self.normalizedEndpointText(settings.endpointURL)
-        guard let endpoint = URL(string: endpointText), endpoint.scheme != nil, endpoint.host != nil else {
-            throw QuickShareError.invalidEndpoint
-        }
-        self.endpoint = endpoint
-        self.region = settings.region.trimmed
-        self.bucket = settings.bucket.trimmed
-        self.accessKeyID = settings.accessKeyID.trimmed
-        self.secretAccessKey = settings.secretAccessKey
-        self.keyPrefix = settings.keyPrefix.pathPrefix
-        self.provider = settings.provider
-    }
-
-    private static func normalizedEndpointText(_ value: String) -> String {
-        let trimmed = value.trimmed
-        guard !trimmed.isEmpty else { return trimmed }
-        guard trimmed.range(of: "^[a-zA-Z][a-zA-Z0-9+.-]*://", options: .regularExpression) == nil else {
-            return trimmed
-        }
-        return "https://\(trimmed)"
-    }
-
-    func uploadURL(for key: String) -> URL { objectURL(for: key) }
-
-    func objectURL(for key: String) -> URL {
-        if isBucketScopedEndpoint {
-            return endpoint.appendingObjectKey(key)
-        }
-        if usesVirtualHostedStyle {
-            return endpoint.withBucketHost(bucket).appendingObjectKey(key)
-        }
-        return endpoint.appendingPathComponent(bucket).appendingObjectKey(key)
-    }
-
-    private var usesVirtualHostedStyle: Bool {
-        switch provider {
-        case .aliyunOSS, .tencentCOS, .awsS3, .cloudflareR2:
-            return true
-        case .s3Compatible:
-            return false
-        }
-    }
-
-    private var isBucketScopedEndpoint: Bool {
-        guard let host = endpoint.host?.lowercased(), !bucket.isEmpty else { return false }
-        let normalizedBucket = bucket.lowercased()
-        if host == normalizedBucket || host.hasPrefix("\(normalizedBucket).") {
-            return true
-        }
-        return endpoint.path
-            .split(separator: "/")
-            .last
-            .map { String($0).lowercased() == normalizedBucket } ?? false
-    }
-}
-
-private enum S3Signer {
-    static func signedHeaders(
-        method: String,
-        url: URL,
-        body: Data,
-        accessKeyID: String,
-        secretAccessKey: String,
-        region: String,
-        now: Date = Date()
-    ) -> [String: String] {
-        let payloadHash = sha256Hex(body)
-        let amzDate = amzDateFormatter.string(from: now)
-        let date = shortDateFormatter.string(from: now)
-        let host = url.hostWithPort
-
-        let signedHeaders = "host;x-amz-content-sha256;x-amz-date"
-        let canonicalHeaders = [
-            "host:\(host)",
-            "x-amz-content-sha256:\(payloadHash)",
-            "x-amz-date:\(amzDate)"
-        ].joined(separator: "\n") + "\n"
-        let canonicalRequest = [
-            method,
-            canonicalURI(url.path),
-            url.query ?? "",
-            canonicalHeaders,
-            signedHeaders,
-            payloadHash
-        ].joined(separator: "\n")
-
-        let credentialScope = "\(date)/\(region)/s3/aws4_request"
-        let stringToSign = [
-            "AWS4-HMAC-SHA256",
-            amzDate,
-            credentialScope,
-            sha256Hex(Data(canonicalRequest.utf8))
-        ].joined(separator: "\n")
-
-        let signingKey = signingKey(secretAccessKey: secretAccessKey, date: date, region: region)
-        let signature = hmacHex(Data(stringToSign.utf8), key: signingKey)
-        let authorization = "AWS4-HMAC-SHA256 Credential=\(accessKeyID)/\(credentialScope), SignedHeaders=\(signedHeaders), Signature=\(signature)"
-
-        return [
-            "Host": host,
-            "x-amz-content-sha256": payloadHash,
-            "x-amz-date": amzDate,
-            "Authorization": authorization
-        ]
-    }
-
-    private static func signingKey(secretAccessKey: String, date: String, region: String) -> SymmetricKey {
-        let dateKey = hmac(Data(date.utf8), key: SymmetricKey(data: Data("AWS4\(secretAccessKey)".utf8)))
-        let regionKey = hmac(Data(region.utf8), key: SymmetricKey(data: dateKey))
-        let serviceKey = hmac(Data("s3".utf8), key: SymmetricKey(data: regionKey))
-        let signingKey = hmac(Data("aws4_request".utf8), key: SymmetricKey(data: serviceKey))
-        return SymmetricKey(data: signingKey)
-    }
-
-    private static func hmac(_ data: Data, key: SymmetricKey) -> Data {
-        Data(HMAC<SHA256>.authenticationCode(for: data, using: key))
-    }
-
-    private static func hmacHex(_ data: Data, key: SymmetricKey) -> String {
-        hmac(data, key: key).hexString
-    }
-
-    private static func sha256Hex(_ data: Data) -> String {
-        Data(SHA256.hash(data: data)).hexString
-    }
-
-    private static func canonicalURI(_ path: String) -> String {
-        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
-        return parts.map { percentEncode(String($0)) }.joined(separator: "/")
-    }
-
-    private static func percentEncode(_ value: String) -> String {
-        let unreserved = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
-        var output = ""
-        for scalar in value.unicodeScalars {
-            if unreserved.contains(scalar) {
-                output.unicodeScalars.append(scalar)
-            } else {
-                for byte in String(scalar).utf8 {
-                    output += String(format: "%%%02X", byte)
-                }
-            }
-        }
-        return output
-    }
-
-    private static let amzDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
-        return formatter
-    }()
-
-    private static let shortDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyyMMdd"
-        return formatter
-    }()
-}
-
-private extension Data {
-    var hexString: String {
-        map { String(format: "%02x", $0) }.joined()
-    }
-}
-
 private extension String {
     var nilIfEmpty: String? {
         isEmpty ? nil : self
     }
-
-    var trimmed: String {
-        trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var pathPrefix: String {
-        trimmed
-            .split(separator: "/")
-            .map(String.init)
-            .filter { !$0.isEmpty }
-            .joined(separator: "/")
-    }
 }
 
-private extension URL {
-    func withBucketHost(_ bucket: String) -> URL {
-        guard var components = URLComponents(url: self, resolvingAgainstBaseURL: false),
-              let host = components.host,
-              !bucket.isEmpty else {
-            return self
-        }
-        components.host = "\(bucket).\(host)"
-        return components.url ?? self
-    }
-
-    func appendingObjectKey(_ key: String) -> URL {
-        key.split(separator: "/").reduce(self) { url, segment in
-            url.appendingPathComponent(String(segment))
-        }
-    }
-
-    var hostWithPort: String {
-        guard let host else { return "" }
-        if let port {
-            return "\(host):\(port)"
-        }
-        return host
-    }
-}
 
 extension Notification.Name {
     static let fifiQuickShareUploadStatusDidChange = Notification.Name("com.leafiy.fifi.quick-share-upload-status-did-change")

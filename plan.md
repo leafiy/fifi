@@ -282,7 +282,7 @@ Add power-user features, privacy controls, advanced search, better previews, and
 - [x] Optionally ignore credit card numbers.
 - [x] Optionally ignore verification codes.
 - [x] Add private mode where entries are not written to disk.
-- [x] Add optional encrypted history storage.
+- [x] Store history and settings locally as plaintext.
 - [x] Add auto-delete for sensitive entries.
 - [x] Add per-app privacy presets.
 

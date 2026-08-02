@@ -111,8 +111,7 @@ struct PrivacySettingsPane: View {
             }
             Section(L("Modes")) {
                 Toggle(L("Private mode (memory only)"), isOn: privacyBool(\.privateMode))
-                Toggle(L("Encrypt stored images and large text"), isOn: privacyBool(\.encryptBlobs))
-                Text(L("Private mode keeps captures in memory and never writes them to disk. Encryption protects blob files at rest; search text stays indexed for speed."))
+                Text(L("Private mode keeps captures in memory and never writes them to disk. Saved history, settings, and Quick Share credentials are stored as plaintext on disk."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -220,66 +219,11 @@ struct ShareSettingsPane: View {
     @ObservedObject var settingsStore: SettingsStore
 
     var body: some View {
-        SettingsPane(L("Share"), systemImage: "square.and.arrow.up", height: 560) {
-            Section(L("Quick Share")) {
-                Picker(L("Provider"), selection: providerBinding) {
-                    ForEach(QuickShareProvider.allCases, id: \.self) { provider in
-                        Text(provider.fifiLabel).tag(provider)
-                    }
-                }
-                Text(L("Quick Share uploads the selected item to your public object storage and copies the public URL to the clipboard."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Section(L("Storage account")) {
-                TextField(
-                    L("Endpoint URL"),
-                    text: shareString(\.endpointURL),
-                    prompt: Text(L("https://s3.us-west-2.amazonaws.com"))
-                )
-                TextField(L("Region"), text: shareString(\.region), prompt: Text("us-west-2"))
-                TextField(L("Bucket"), text: shareString(\.bucket), prompt: Text("my-public-bucket"))
-                TextField(L("Access Key"), text: shareString(\.accessKeyID))
-                SecureField(L("Secret Key"), text: shareString(\.secretAccessKey))
-            }
-            Section(L("Public URL")) {
-                TextField(L("Object prefix"), text: shareString(\.keyPrefix), prompt: Text("fifi"))
-                Text(L("Fifi builds the public URL from Endpoint, Bucket, Object prefix, and the generated filename."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Section(L("Quick guide")) {
-                Text(L("1. Create a bucket or prefix that is public-read.\n2. Create a least-privileged key that can PutObject only to that bucket or prefix.\n3. Fill Endpoint, Region, Bucket, Access Key, Secret Key, and Object prefix.\nExamples: Alibaba OSS endpoint https://oss-cn-hangzhou.aliyuncs.com or https://<bucket>.oss-cn-hangzhou.aliyuncs.com; Tencent COS endpoint https://cos.ap-shanghai.myqcloud.com or https://<bucket>.cos.ap-shanghai.myqcloud.com; AWS S3 endpoint https://s3.us-west-2.amazonaws.com; Cloudflare R2 endpoint https://<account-id>.r2.cloudflarestorage.com with region auto."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-        }
-    }
-
-    private var providerBinding: Binding<QuickShareProvider> {
-        Binding(
-            get: { settingsStore.settings.quickShare.provider },
-            set: { newValue in settingsStore.update { $0.quickShare.provider = newValue } }
+        QuickShareSettingsPane(
+            settings: Binding(
+                get: { settingsStore.settings.quickShare },
+                set: { newValue in settingsStore.update { $0.quickShare = newValue } }
+            )
         )
-    }
-
-    private func shareString(_ keyPath: WritableKeyPath<QuickShareSettings, String>) -> Binding<String> {
-        Binding(
-            get: { settingsStore.settings.quickShare[keyPath: keyPath] },
-            set: { newValue in settingsStore.update { $0.quickShare[keyPath: keyPath] = newValue } }
-        )
-    }
-}
-
-extension QuickShareProvider {
-    var fifiLabel: String {
-        switch self {
-        case .s3Compatible: return L("S3-compatible")
-        case .aliyunOSS: return L("Alibaba Cloud OSS")
-        case .tencentCOS: return L("Tencent Cloud COS")
-        case .awsS3: return L("AWS S3")
-        case .cloudflareR2: return L("Cloudflare R2")
-        }
     }
 }

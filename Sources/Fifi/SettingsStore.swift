@@ -2,56 +2,56 @@ import Combine
 import Foundation
 import FifiCore
 import LeafiyUICore
-import ServiceManagement
 
 @MainActor
 final class SettingsStore: ObservableObject {
     @Published var settings: AppSettings
 
-    private let defaults: UserDefaults
-    private let secrets: KeychainSecretStore
-    private let key = "app.settings"
+    private let store: LeafiySettingsStore<AppSettings>
 
-
-    nonisolated static func persistedAppLanguage(defaults: UserDefaults = .standard) -> AppLanguage {
-        guard let data = defaults.data(forKey: "app.settings"),
-              let settings = try? JSONDecoder().decode(AppSettings.self, from: data) else {
-            return .system
-        }
-        return AppLanguage(rawValue: settings.appLanguage) ?? .system
+    nonisolated static func persistedAppLanguage(
+        store: LeafiySettingsStore<AppSettings> = .standard(directoryName: "Fifi")
+    ) -> AppLanguage {
+        AppLanguage(rawValue: store.load().appLanguage) ?? .system
     }
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        self.secrets = KeychainSecretStore()
-        if let data = defaults.data(forKey: key) {
-            do {
-                settings = Self.hydrate(
-                    try JSONDecoder().decode(AppSettings.self, from: data),
-                    secrets: secrets
-                )
-            } catch {
-                NSLog("Failed to decode settings, using defaults: \(String(describing: error))")
-                settings = AppSettings()
-            }
+
+    init(fileURL: URL? = nil) {
+        let backingStore: LeafiySettingsStore<AppSettings>
+        if let fileURL {
+            backingStore = LeafiySettingsStore(fileURL: fileURL)
         } else {
-            settings = Self.hydrate(AppSettings(), secrets: secrets)
+            backingStore = .standard(directoryName: "Fifi")
         }
-        // Rewrite legacy settings immediately so credentials are removed from
-        // the UserDefaults blob even if the user makes no further changes.
-        save()
+        self.store = backingStore
+        settings = backingStore.load()
         applyLocalization()
+    }
+
+    var hasSavedSettings: Bool {
+        store.hasSavedSettings
     }
 
     // MARK: - Persistence
 
+    @discardableResult
+    func load() -> AppSettings {
+        settings = store.load()
+        applyLocalization()
+        return settings
+    }
+
     func save() {
         do {
-            try persistSecrets(from: settings)
-            let data = try JSONEncoder().encode(Self.sanitized(settings))
-            defaults.set(data, forKey: key)
+            try store.save(settings)
         } catch {
             NSLog("Failed to save settings: \(String(describing: error))")
         }
+    }
+
+    func save(_ settings: AppSettings) throws {
+        self.settings = settings
+        try store.save(settings)
+        applyLocalization()
     }
 
     func update(_ mutate: (inout AppSettings) -> Void) {
@@ -68,7 +68,7 @@ final class SettingsStore: ObservableObject {
     /// Imports settings while retaining existing credentials when the input is
     /// intentionally redacted, as exports and diagnostics are now.
     func replaceSettings(_ imported: AppSettings) {
-        var next = imported
+        var next = imported.normalized()
         if next.quickShare.accessKeyID.isEmpty {
             next.quickShare.accessKeyID = settings.quickShare.accessKeyID
         }
@@ -78,40 +78,6 @@ final class SettingsStore: ObservableObject {
         settings = next
         save()
         applyLocalization()
-    }
-
-    private func persistSecrets(from settings: AppSettings) throws {
-        let accessKey = settings.quickShare.accessKeyID
-        let secretKey = settings.quickShare.secretAccessKey
-        if accessKey.isEmpty {
-            try secrets.remove(account: "quickShareAccessKeyID")
-        } else {
-            try secrets.write(accessKey, account: "quickShareAccessKeyID")
-        }
-        if secretKey.isEmpty {
-            try secrets.remove(account: "quickShareSecretAccessKey")
-        } else {
-            try secrets.write(secretKey, account: "quickShareSecretAccessKey")
-        }
-    }
-
-    private static func hydrate(_ settings: AppSettings, secrets: KeychainSecretStore) -> AppSettings {
-        var hydrated = settings
-        do {
-            if let stored = try secrets.read(account: "quickShareAccessKeyID") {
-                hydrated.quickShare.accessKeyID = stored
-            } else if !hydrated.quickShare.accessKeyID.isEmpty {
-                try secrets.write(hydrated.quickShare.accessKeyID, account: "quickShareAccessKeyID")
-            }
-            if let stored = try secrets.read(account: "quickShareSecretAccessKey") {
-                hydrated.quickShare.secretAccessKey = stored
-            } else if !hydrated.quickShare.secretAccessKey.isEmpty {
-                try secrets.write(hydrated.quickShare.secretAccessKey, account: "quickShareSecretAccessKey")
-            }
-        } catch {
-            NSLog("Fifi: failed to access Keychain: %@", String(describing: error))
-        }
-        return hydrated
     }
 
     private static func sanitized(_ settings: AppSettings) -> AppSettings {
@@ -132,22 +98,5 @@ final class SettingsStore: ObservableObject {
 
     private func applyLocalization() {
         LeafiyLocalization.language = appLanguage
-    }
-
-    // MARK: - Login Item
-
-    func applyLaunchAtLogin() {
-        do {
-            let service = SMAppService.mainApp
-            if settings.launchAtLogin {
-                if service.status != .enabled {
-                    try service.register()
-                }
-            } else if service.status == .enabled {
-                try service.unregister()
-            }
-        } catch {
-            NSLog("Failed to apply launch-at-login setting: \(String(describing: error))")
-        }
     }
 }

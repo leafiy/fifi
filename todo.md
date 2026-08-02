@@ -112,7 +112,7 @@
 - [x] Add built-in sensitive content detection.
 - [x] Optionally ignore passwords, tokens, API keys, credit cards, and verification codes.
 - [x] Add private mode where clipboard entries are not written to disk.
-- [x] Add encrypted history storage option.
+- [x] Store clipboard history and settings locally as plaintext.
 - [x] Add auto-delete sensitive entries after a short delay.
 - [x] Add per-app privacy presets.
 

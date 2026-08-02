@@ -2,13 +2,12 @@ import AppKit
 import Carbon.HIToolbox
 import FifiCore
 import LeafiyUICore
+import LeafiyUI
 import SwiftUI
 @preconcurrency import UserNotifications
-
-// Panel behavior cloned from Maccy's FloatingPanel: a non-activating,
-// titled-but-chromeless panel that takes key status WITHOUT activating the
-// app. NSApp.activate is deliberately never called — macOS 14+ throttles
-// repeated activate/yield cycles, which made the picker work only once.
+// The picker uses the Base Library Floating Panel: non-activating, keyboard
+// capable, and shown without NSApp.activate so the frontmost app keeps focus
+// for paste-through behavior.
 @MainActor
 final class PickerController {
     private let historyService: HistoryService
@@ -16,10 +15,9 @@ final class PickerController {
     private let settingsStore: SettingsStore
     private let captureCurrentPasteboard: () -> Void
     private let viewModel: PickerViewModel
-    private let panel: PickerPanel
+    private let panel: LeafiyFloatingPanel
     private let thumbnailLoader: ThumbnailLoader
     private let quickShareService: QuickShareService
-    private let contentView: PickerHostingView<AnyView>
 
     private var localKeyMonitor: Any?
     private var localMouseMonitor: Any?
@@ -41,48 +39,23 @@ final class PickerController {
         self.viewModel = PickerViewModel(historyService: historyService)
         self.thumbnailLoader = ThumbnailLoader(blobStore: blobStore)
         self.quickShareService = QuickShareService(blobStore: blobStore)
-        self.contentView = PickerHostingView(
-            rootView: AnyView(
-                PickerView(viewModel: viewModel, settingsStore: settingsStore, thumbnailLoader: thumbnailLoader, blobStore: blobStore)
-                    .id(settingsStore.appLanguage)
-                    .ignoresSafeArea()
+        let panel = LeafiyFloatingPanel(
+            configuration: LeafiyFloatingPanelConfiguration(
+                canBecomeKey: true,
+                isMovable: true,
+                hasShadow: true
+            ),
+            content: Self.pickerContent(
+                viewModel: viewModel,
+                settingsStore: settingsStore,
+                thumbnailLoader: thumbnailLoader,
+                blobStore: blobStore
             )
         )
-
-        let panel = PickerPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 480),
-            styleMask: [.nonactivatingPanel, .closable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
+        panel.setContentSize(NSSize(width: 420, height: 480))
         panel.title = L("Clipboard History")
         panel.animationBehavior = .none
-        panel.isFloatingPanel = true
-        panel.level = .statusBar
-        panel.collectionBehavior = [.auxiliary, .stationary, .canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.titlebarSeparatorStyle = .none
-        panel.hidesOnDeactivate = false
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true
-        panel.standardWindowButton(.closeButton)?.isHidden = true
-        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        panel.standardWindowButton(.zoomButton)?.isHidden = true
         self.panel = panel
-
-
-        contentView.wantsLayer = true
-        contentView.layer?.cornerRadius = 12
-        contentView.layer?.masksToBounds = true
-        panel.contentView = contentView
-
-        // Do not close on resignKey: native context menus temporarily move key
-        // focus away from the panel before dispatching their action.
-        panel.onResignKey = {
-            NSLog("Fifi[picker] ignored resignKey")
-        }
 
         viewModel.onActivate = { [weak self] item in
             Task { @MainActor in
@@ -444,13 +417,26 @@ final class PickerController {
         }
     }
 
+    private static func pickerContent(
+        viewModel: PickerViewModel,
+        settingsStore: SettingsStore,
+        thumbnailLoader: ThumbnailLoader,
+        blobStore: BlobStore
+    ) -> some View {
+        PickerView(viewModel: viewModel, settingsStore: settingsStore, thumbnailLoader: thumbnailLoader, blobStore: blobStore)
+            .id(settingsStore.appLanguage)
+            .ignoresSafeArea()
+            .clipShape(.rect(cornerRadius: 12))
+    }
+
     private func refreshLocalizedContent() {
         panel.title = L("Clipboard History")
-        contentView.rootView = AnyView(
-            PickerView(viewModel: viewModel, settingsStore: settingsStore, thumbnailLoader: thumbnailLoader, blobStore: blobStore)
-                .id(settingsStore.appLanguage)
-                .ignoresSafeArea()
-        )
+        panel.setContent(Self.pickerContent(
+            viewModel: viewModel,
+            settingsStore: settingsStore,
+            thumbnailLoader: thumbnailLoader,
+            blobStore: blobStore
+        ))
     }
 
     deinit {
@@ -463,21 +449,3 @@ final class PickerController {
     }
 }
 
-private final class PickerPanel: NSPanel {
-    var onResignKey: (() -> Void)?
-
-    // Allow text inputs inside the panel to receive focus (Maccy).
-    override var canBecomeKey: Bool { true }
-
-    // Close automatically when key status is lost, e.g. an outside click.
-    override func resignKey() {
-        super.resignKey()
-        onResignKey?()
-    }
-}
-
-private final class PickerHostingView<Content: View>: NSHostingView<Content> {
-    // The panel never activates the app, so the first click must act on the
-    // row instead of being eaten as a focus click.
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-}

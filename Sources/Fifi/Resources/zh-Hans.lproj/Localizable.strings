@@ -9,9 +9,9 @@
 "Fifi couldn’t start" = "Fifi 无法启动";
 "The history database could not be opened. Fifi will quit.\n\n%@" = "无法打开历史记录数据库。Fifi 将退出。\n\n%@";
 "Quit" = "退出";
-"Couldn’t register %@ (error %d); another app may already own it." = "无法注册 %@（错误 %d）；可能已被其他 App 占用。";
+"Couldn’t register %@; another app may already own it." = "无法注册 %@；可能已被其他 App 占用。";
 "Picker shortcut unavailable" = "选择器快捷键不可用";
-"Fifi couldn’t register “%@” (error %d) — another app probably owns it. You can still open the picker from the Fifi menu bar menu, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically." = "Fifi 无法注册“%@”（错误 %d）——可能已被其他 App 占用。你仍可从 Fifi 菜单栏菜单打开选择器，或在设置中选择其他快捷键。此快捷键只用于打开选择器；使用 ⌘C 拷贝的内容始终会自动记录。";
+"Fifi couldn’t register “%@” — another app probably owns it. You can still open the picker from the Fifi menu bar menu, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically." = "Fifi 无法注册“%@”——可能已被其他 App 占用。你仍可从 Fifi 菜单栏菜单打开选择器，或在设置中选择其他快捷键。此快捷键只用于打开选择器；使用 ⌘C 拷贝的内容始终会自动记录。";
 "OK" = "好";
 "Open Picker" = "打开选择器";
 "Show picker preview" = "显示选择器预览窗口";
@@ -21,8 +21,6 @@
 "Resume Recording" = "继续记录";
 "Clear History…" = "清除历史记录…";
 "Clear by Type" = "按类型清除";
-"Settings…" = "设置…";
-"Quit Fifi" = "退出 Fifi";
 "Open Picker    %@" = "打开选择器    %@";
 "Unsupported shortcut. Choose two modifiers and one letter or number." = "不支持此快捷键。请选择两个修饰键和一个字母或数字。";
 "General" = "通用";
@@ -159,8 +157,7 @@
 "Seconds" = "秒";
 "Modes" = "模式";
 "Private mode (memory only)" = "隐私模式（仅内存）";
-"Encrypt stored images and large text" = "加密存储的图像和大段文本";
-"Private mode keeps captures in memory and never writes them to disk. Encryption protects blob files at rest; search text stays indexed for speed." = "隐私模式仅将捕获内容保留在内存中，绝不写入磁盘。加密可保护静态的 blob 文件；搜索文本仍会建立索引以保证速度。";
+"Private mode keeps captures in memory and never writes them to disk. Saved history, settings, and Quick Share credentials are stored as plaintext on disk." = "隐私模式仅将捕获内容保留在内存中，绝不写入磁盘。已保存的历史记录、设置和快速分享凭据会以明文存储在磁盘上。";
 "Per-App Privacy" = "按 App 隐私";
 "No per-app rules" = "没有按 App 规则";
 "Mode" = "模式";
@@ -203,27 +200,8 @@
 "Quick Look" = "快速查看";
 
 /* Quick Share */
-"Share" = "分享";
 "Quick Share" = "快速分享";
 "Quick Share uploading…" = "快速分享上传中…";
-"Provider" = "服务商";
-"S3-compatible" = "S3 兼容";
-"Alibaba Cloud OSS" = "阿里云 OSS";
-"Tencent Cloud COS" = "腾讯云 COS";
-"AWS S3" = "AWS S3";
-"Cloudflare R2" = "Cloudflare R2";
-"Quick Share uploads the selected item to your public object storage and copies the public URL to the clipboard." = "快速分享会将所选项目上传到你的公开对象存储，并把公网 URL 复制到剪贴板。";
-"Storage account" = "存储账号";
-"Endpoint URL" = "Endpoint URL";
-"Region" = "Region";
-"Bucket" = "Bucket";
-"Access Key" = "Access Key";
-"Secret Key" = "Secret Key";
-"Public URL" = "公网 URL";
-"Object prefix" = "对象前缀";
-"Fifi builds the public URL from Endpoint, Bucket, Object prefix, and the generated filename." = "Fifi 会用 Endpoint、Bucket、对象前缀和自动生成的文件名拼出公网 URL。";
-"Quick guide" = "快速指南";
-"1. Create a bucket or prefix that is public-read.\n2. Create a least-privileged key that can PutObject only to that bucket or prefix.\n3. Fill Endpoint, Region, Bucket, Access Key, Secret Key, and Object prefix.\nExamples: Alibaba OSS endpoint https://oss-cn-hangzhou.aliyuncs.com or https://<bucket>.oss-cn-hangzhou.aliyuncs.com; Tencent COS endpoint https://cos.ap-shanghai.myqcloud.com or https://<bucket>.cos.ap-shanghai.myqcloud.com; AWS S3 endpoint https://s3.us-west-2.amazonaws.com; Cloudflare R2 endpoint https://<account-id>.r2.cloudflarestorage.com with region auto." = "1. 创建一个 public-read 的 bucket 或前缀。\n2. 创建一个最小权限密钥，只允许向这个 bucket 或前缀 PutObject。\n3. 填写 Endpoint、Region、Bucket、Access Key、Secret Key 和对象前缀。\n示例：阿里云 OSS endpoint https://oss-cn-hangzhou.aliyuncs.com 或 https://<bucket>.oss-cn-hangzhou.aliyuncs.com；腾讯云 COS endpoint https://cos.ap-shanghai.myqcloud.com 或 https://<bucket>.cos.ap-shanghai.myqcloud.com；AWS S3 endpoint https://s3.us-west-2.amazonaws.com；Cloudflare R2 endpoint https://<account-id>.r2.cloudflarestorage.com，region 填 auto。";
 "Set up Quick Share storage in Settings first." = "请先在设置中配置快速分享存储。";
 "The Quick Share endpoint URL is invalid." = "快速分享 Endpoint URL 无效。";
 "This item has no shareable payload." = "此项目没有可分享内容。";
