@@ -14,6 +14,18 @@ struct FifiApp: App {
 
     init() {
         LeafiyLocalization.language = SettingsStore.persistedAppLanguage()
+        if CommandLine.arguments.contains("--leafiy-doctor") {
+            let appBundle = LeafiyLocalization.moduleBundle(package: "Fifi", target: "Fifi")
+            let leafiyUIBundle = LeafiyLocalization.moduleBundle(package: "LeafiyUI", target: "LeafiyUI")
+            print(LeafiyDiagnostics.doctorReport(
+                store: LeafiySettingsStore<AppSettings>.standard(directoryName: "Fifi"),
+                probes: [
+                    (label: "app", bundle: appBundle, key: "Search clipboard"),
+                    (label: "leafiy-ui", bundle: leafiyUIBundle, key: "About")
+                ]
+            ))
+            exit(0)
+        }
     }
     var body: some Scene {
         MenuBarExtra {
