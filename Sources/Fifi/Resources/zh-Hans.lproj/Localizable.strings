@@ -34,7 +34,7 @@
 "On selection" = "选择项目时";
 "Paste immediately" = "立即粘贴";
 "Copy only" = "仅拷贝";
-"Launch at login" = "登录时启动";
+"Launch at login" = "开机自启动";
 "Choose two modifier keys, then type one letter or number." = "请选择两个修饰键，然后输入一个字母或数字。";
 "Storage" = "存储";
 "Limits" = "限制";

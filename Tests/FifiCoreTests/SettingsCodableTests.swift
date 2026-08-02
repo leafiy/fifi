@@ -5,6 +5,7 @@ import XCTest
 final class SettingsCodableTests: XCTestCase {
     func testAppSettingsDecodesMissingKeysAndPreservesPresentV1Keys() throws {
         let empty = try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8))
+        XCTAssertFalse(empty.launchAtLogin)
         XCTAssertEqual(try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(empty)), empty)
 
         let data = Data(
