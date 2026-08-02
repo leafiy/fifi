@@ -305,8 +305,8 @@ private struct FifiMenuContent: View {
 
         Divider()
 
-        SettingsLink {
-            Text(L("Settings…"))
+        Button(L("Settings…")) {
+            LeafiySettingsWindow.open()
         }
 
         Button(L("Quit Fifi")) {
