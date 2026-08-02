@@ -26,6 +26,17 @@ struct FifiApp: App {
             ))
             exit(0)
         }
+        LeafiyDiagnostics.writeLaunchReport(
+            store: LeafiySettingsStore<AppSettings>.standard(directoryName: "Fifi"),
+            probes: [
+                (label: "app",
+                 bundle: LeafiyLocalization.moduleBundle(package: "Fifi", target: "Fifi"),
+                 key: "Search clipboard"),
+                (label: "leafiy-ui",
+                 bundle: LeafiyLocalization.moduleBundle(package: "LeafiyUI", target: "LeafiyUI"),
+                 key: "About")
+            ]
+        )
     }
     var body: some Scene {
         MenuBarExtra {
