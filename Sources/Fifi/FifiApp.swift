@@ -343,6 +343,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var quickShareStatusObserver: NSObjectProtocol?
     private var lastRegisteredShortcut: String?
     private var lastLaunchAtLogin: Bool?
+    private var lastDockIcon: Bool?
     private var lastPauseState: Bool?
     private var warnedHotkeyConflict = false
     private var lastAppearance: AppearanceMode?
@@ -353,7 +354,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         SoftwareUpdateController.shared.startAutomaticCheck()
-        NSApp.setActivationPolicy(.accessory)
 
         do {
             try configureServices()
@@ -709,6 +709,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appState.appLanguage = language
         registerHotKeyIfNeeded(settings.hotkeyShortcut)
         applyLaunchAtLoginIfNeeded(settings)
+        applyDockIconIfNeeded(settings)
         applyRecordingStateIfNeeded(settings)
         applyAppearanceIfNeeded(settings)
     }
@@ -738,6 +739,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard lastLaunchAtLogin != settings.launchAtLogin else { return }
         lastLaunchAtLogin = settings.launchAtLogin
         LeafiyLaunchAtLogin.setEnabled(settings.launchAtLogin)
+    }
+
+    private func applyDockIconIfNeeded(_ settings: AppSettings) {
+        guard lastDockIcon != settings.showDockIcon else { return }
+        lastDockIcon = settings.showDockIcon
+        LeafiyDockIcon.setVisible(settings.showDockIcon)
     }
 
     private func applyRecordingStateIfNeeded(_ settings: AppSettings) {
@@ -829,7 +836,8 @@ private struct GeneralSettingsPane: View {
     var body: some View {
         LeafiyGeneralPane(
             language: appLanguageBinding,
-            launchAtLogin: launchAtLoginBinding
+            launchAtLogin: launchAtLoginBinding,
+            dockIcon: dockIconBinding
         ) {
             LabeledContent(L("Global shortcut")) {
                 ShortcutField(spec: shortcutBinding)
@@ -900,6 +908,17 @@ private struct GeneralSettingsPane: View {
             set: { newValue in
                 settingsStore.update { settings in
                     settings.launchAtLogin = newValue
+                }
+            }
+        )
+    }
+
+    private var dockIconBinding: Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.showDockIcon },
+            set: { newValue in
+                settingsStore.update { settings in
+                    settings.showDockIcon = newValue
                 }
             }
         )
