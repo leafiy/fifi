@@ -277,9 +277,12 @@ final class PickerController {
         let minY = visibleFrame.minY + size.height + margin
         let maxY = max(minY, visibleFrame.maxY - margin)
 
+        // Below-right of the pointer, offset so the panel never sits under
+        // the cursor; the clamps above slide it back on-screen near edges.
+        let pointerOffset: CGFloat = 16
         let topLeft = NSPoint(
-            x: min(max(mouse.x - size.width / 2, minX), maxX),
-            y: min(max(mouse.y + size.height / 2, minY), maxY)
+            x: min(max(mouse.x + pointerOffset, minX), maxX),
+            y: min(max(mouse.y - pointerOffset, minY), maxY)
         )
         panel.setFrameTopLeftPoint(topLeft)
         NSLog(
