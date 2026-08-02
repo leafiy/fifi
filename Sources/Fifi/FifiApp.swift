@@ -305,6 +305,7 @@ private struct FifiMenuContent: View {
 
         Divider()
 
+        SoftwareUpdateMenuButton()
         Button(L("Settings…")) {
             LeafiySettingsWindow.open()
         }
@@ -343,6 +344,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var activeQuickShareUploads = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        SoftwareUpdateController.shared.startAutomaticCheck()
         NSApp.setActivationPolicy(.accessory)
 
         do {
