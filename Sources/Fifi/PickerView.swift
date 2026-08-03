@@ -44,7 +44,9 @@ struct PickerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial)
+        // Opaque window background to match daisy/eddy; the panel window
+        // itself is transparent, so this fill is the visible surface.
+        .background(Color(nsColor: .windowBackgroundColor))
         .onAppear(perform: handleAppear)
         .onChange(of: showFilters) {
             clearHiddenFiltersIfNeeded()
