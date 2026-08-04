@@ -68,51 +68,36 @@ final class AppSettingsTests: XCTestCase {
         let settings = AppSettings.defaults
 
         XCTAssertFalse(settings.windowOpacityEnabled)
-        XCTAssertEqual(settings.windowOpacity, AppSettings.defaultWindowOpacity)
         XCTAssertEqual(settings.currentWindowOpacity, 1)
         XCTAssertEqual(settings.windowBlurIntensity, 0)
     }
 
-    func testWindowOpacityIsClampedOnInitAndDecode() throws {
-        XCTAssertEqual(AppSettings(windowOpacity: 0).windowOpacity, AppSettings.minWindowOpacity)
-        XCTAssertEqual(AppSettings(windowOpacity: 2).windowOpacity, 1)
-        XCTAssertEqual(AppSettings(windowOpacity: .nan).windowOpacity, AppSettings.defaultWindowOpacity)
+    func testWindowOpacityToggleUsesFixedLevels() {
+        let settings = AppSettings(windowOpacityEnabled: true)
 
-        let decoded = try JSONDecoder().decode(
-            AppSettings.self,
-            from: Data(#"{"windowOpacityEnabled":true,"windowOpacity":0.01}"#.utf8)
-        )
-        XCTAssertTrue(decoded.windowOpacityEnabled)
-        XCTAssertEqual(decoded.windowOpacity, AppSettings.minWindowOpacity)
+        XCTAssertEqual(settings.currentWindowOpacity, 0.94)
+        XCTAssertEqual(settings.currentWindowOpacity, AppSettings.fixedWindowOpacity)
+        XCTAssertEqual(settings.windowBlurIntensity, 0.8)
+        XCTAssertEqual(settings.windowBlurIntensity, AppSettings.fixedWindowBlur)
     }
 
-    func testDecodingLegacyPayloadWithoutOpacityKeysFallsBackToDefaults() throws {
+    func testDecodingLegacySliderPayloadKeepsToggleAndIgnoresLevel() throws {
+        let decoded = try JSONDecoder().decode(
+            AppSettings.self,
+            from: Data(#"{"windowOpacityEnabled":true,"windowOpacity":0.4}"#.utf8)
+        )
+
+        XCTAssertTrue(decoded.windowOpacityEnabled)
+        XCTAssertEqual(decoded.currentWindowOpacity, AppSettings.fixedWindowOpacity)
+    }
+
+    func testDecodingPayloadWithoutOpacityKeyDefaultsOff() throws {
         let decoded = try JSONDecoder().decode(
             AppSettings.self,
             from: Data(#"{"hotkeyShortcut":"cmd+shift+v"}"#.utf8)
         )
 
         XCTAssertFalse(decoded.windowOpacityEnabled)
-        XCTAssertEqual(decoded.windowOpacity, AppSettings.defaultWindowOpacity)
-    }
-
-    func testWindowBlurDerivation() {
-        XCTAssertEqual(AppSettings.windowBlur(forOpacity: 1), 0)
-        XCTAssertEqual(
-            AppSettings.windowBlur(forOpacity: AppSettings.minWindowOpacity),
-            AppSettings.maxWindowBlur,
-            accuracy: 0.0001
-        )
-
-        var settings = AppSettings(windowOpacityEnabled: true, windowOpacity: 0.55)
-        XCTAssertEqual(settings.currentWindowOpacity, 0.55)
-        XCTAssertEqual(
-            settings.windowBlurIntensity,
-            AppSettings.windowBlur(forOpacity: 0.55),
-            accuracy: 0.0001
-        )
-
-        settings.windowOpacityEnabled = false
-        XCTAssertEqual(settings.windowBlurIntensity, 0)
+        XCTAssertEqual(decoded.windowBlurIntensity, 0)
     }
 }

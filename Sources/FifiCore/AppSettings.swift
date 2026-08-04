@@ -95,10 +95,10 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
     public var fuzzyRanking: Bool
     public var privacy: PrivacySettings
     public var quickShare: QuickShareSettings
-    /// Window transparency for the picker panel — Fifi's main window. Off
-    /// by default; the level is clamped to `windowOpacityRange`.
+    /// Window transparency for the picker panel — Fifi's main window. A
+    /// plain switch, off by default: on applies `fixedWindowOpacity` and
+    /// `fixedWindowBlur`, there is no configurable level.
     public var windowOpacityEnabled: Bool
-    public var windowOpacity: Double
 
     public static var defaults: AppSettings { AppSettings() }
 
@@ -124,8 +124,7 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
         fuzzyRanking: Bool = false,
         privacy: PrivacySettings = PrivacySettings(),
         quickShare: QuickShareSettings = QuickShareSettings(keyPrefix: "fifi"),
-        windowOpacityEnabled: Bool = false,
-        windowOpacity: Double = AppSettings.defaultWindowOpacity
+        windowOpacityEnabled: Bool = false
     ) {
         self.hotkeyShortcut = hotkeyShortcut
         self.selectionBehavior = selectionBehavior
@@ -149,7 +148,6 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
         self.privacy = privacy
         self.quickShare = quickShare
         self.windowOpacityEnabled = windowOpacityEnabled
-        self.windowOpacity = AppSettings.clampedOpacity(windowOpacity)
     }
 
     // Tolerant decoding: V1 settings JSON lacks every V2 key; missing keys
@@ -179,44 +177,26 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
         privacy = try container.decodeIfPresent(PrivacySettings.self, forKey: .privacy) ?? defaults.privacy
         quickShare = try container.decodeIfPresent(QuickShareSettings.self, forKey: .quickShare) ?? defaults.quickShare
         windowOpacityEnabled = try container.decodeIfPresent(Bool.self, forKey: .windowOpacityEnabled) ?? defaults.windowOpacityEnabled
-        windowOpacity = AppSettings.clampedOpacity(try container.decodeIfPresent(Double.self, forKey: .windowOpacity) ?? defaults.windowOpacity)
     }
 
     // MARK: - Window transparency
 
-    /// Fully opaque is the top of the range; below `minWindowOpacity` the
-    /// window stops being usable, so the slider bottoms out there.
-    public static let minWindowOpacity: Double = 0.1
-    public static let defaultWindowOpacity: Double = 0.9
-    public static let windowOpacityRange: ClosedRange<Double> = minWindowOpacity...1
-
-    public static func clampedOpacity(_ value: Double) -> Double {
-        guard value.isFinite else { return defaultWindowOpacity }
-        return min(max(value, minWindowOpacity), 1)
-    }
+    /// Transparency is a single switch, not a level: on means the picker
+    /// carries this fixed alpha, paired with a fixed frosted-backdrop
+    /// strength so the desktop never shows through razor-sharp.
+    public static let fixedWindowOpacity: Double = 0.94
+    public static let fixedWindowBlur: Double = 0.8
 
     /// The alpha the picker window should carry right now. Disabled means
-    /// fully opaque regardless of the stored level.
+    /// fully opaque.
     public var currentWindowOpacity: Double {
-        windowOpacityEnabled ? windowOpacity : 1
+        windowOpacityEnabled ? AppSettings.fixedWindowOpacity : 1
     }
 
-    /// A translucent window that shows a razor-sharp desktop through it is
-    /// unreadable, so transparency drags a frosted backdrop along with it.
-    /// The strength is derived, never configured: none at fully opaque,
-    /// rising to `maxWindowBlur` at `minWindowOpacity`. It stops short of 1
-    /// so the window keeps some of its own colour at every level.
-    public static let maxWindowBlur: Double = 0.8
-
-    public static func windowBlur(forOpacity opacity: Double) -> Double {
-        let transparency = (1 - clampedOpacity(opacity)) / (1 - minWindowOpacity)
-        return maxWindowBlur * transparency
-    }
-
-    /// Blur strength that pairs with `currentWindowOpacity`; zero while
-    /// transparency is off, since the window is then fully opaque.
+    /// Backdrop blur strength that pairs with `currentWindowOpacity`; zero
+    /// while transparency is off, since the window is then fully opaque.
     public var windowBlurIntensity: Double {
-        windowOpacityEnabled ? AppSettings.windowBlur(forOpacity: windowOpacity) : 0
+        windowOpacityEnabled ? AppSettings.fixedWindowBlur : 0
     }
 
     public var cleanupPolicy: CleanupPolicy {

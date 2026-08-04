@@ -143,9 +143,7 @@
 "Number shortcuts (⌘1–0)" = "数字快捷键（⌘1–0）";
 "Window" = "窗口";
 "Window Transparency" = "窗口透明度";
-"Make the whole picker window translucent" = "让整个选择器窗口半透明";
-"Opacity" = "不透明度";
-"Transparency automatically blurs the background behind the window, more so the more transparent it is" = "半透明时会自动为窗口背景加上模糊，越透明模糊越明显";
+"Make the whole picker window translucent and blur the desktop behind it" = "让整个选择器窗口半透明，并模糊其后的桌面背景";
 
 /* Privacy settings */
 "Privacy" = "隐私";
