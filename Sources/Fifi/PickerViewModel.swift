@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 import FifiCore
@@ -83,6 +84,13 @@ final class PickerViewModel: ObservableObject {
     private var isLoading = false
     private var isResettingQuery = false
     private var memoryCount = 0
+    /// Set while a hover-driven selection change is pending so the view can
+    /// skip the scroll-to-center it performs for keyboard selection changes.
+    private var isHoverSelection = false
+    /// Mouse location captured on keyboard navigation; hover events are
+    /// ignored until the mouse moves away from it, because keyboard scrolling
+    /// slides rows under a stationary cursor and fires spurious hovers.
+    private var keyboardMouseAnchor: NSPoint?
 
     init(historyService: HistoryService) {
         self.historyService = historyService
@@ -150,11 +158,31 @@ final class PickerViewModel: ObservableObject {
     }
 
     func moveSelection(_ delta: Int) {
+        keyboardMouseAnchor = NSEvent.mouseLocation
         guard !items.isEmpty else {
             selectedIndex = -1
             return
         }
         selectedIndex = min(max(selectedIndex + delta, 0), items.count - 1)
+    }
+
+    /// Moves the selection to the hovered row so the highlight follows the
+    /// mouse. No-op while the cursor sits where keyboard scrolling left it.
+    func hoverSelect(index: Int) {
+        guard items.indices.contains(index), index != selectedIndex else { return }
+        if let anchor = keyboardMouseAnchor {
+            guard NSEvent.mouseLocation != anchor else { return }
+            keyboardMouseAnchor = nil
+        }
+        isHoverSelection = true
+        selectedIndex = index
+    }
+
+    /// Returns whether the latest selection change came from hovering, and
+    /// resets the flag. Called by the view before auto-scrolling.
+    func consumeHoverSelection() -> Bool {
+        defer { isHoverSelection = false }
+        return isHoverSelection
     }
 
     func deleteSelected() {

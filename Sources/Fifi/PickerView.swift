@@ -215,6 +215,9 @@ struct PickerView: View {
                                 onQuickAction: { viewModel.performQuickAction($0, item: row.item) }
                             )
                             .id(row.item.id)
+                            .onHover { hovering in
+                                if hovering { viewModel.hoverSelect(index: row.index) }
+                            }
                             .onAppear {
                                 if row.index == viewModel.items.count - 1 {
                                     viewModel.loadMore()
@@ -226,6 +229,7 @@ struct PickerView: View {
                 }
                 .id(viewModel.listRevision)
                 .onChange(of: viewModel.selectedIndex) { _, index in
+                    guard !viewModel.consumeHoverSelection() else { return }
                     guard viewModel.items.indices.contains(index) else { return }
                     withAnimation(.easeOut(duration: 0.12)) {
                         proxy.scrollTo(viewModel.items[index].id, anchor: .center)
