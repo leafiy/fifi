@@ -25,6 +25,10 @@ final class PickerController {
     private var historyObserver: NSObjectProtocol?
     private var lastHideTime: TimeInterval = 0
     private var languageObserver: NSObjectProtocol?
+    private var panelBackdrop: NSVisualEffectView?
+
+    /// Matches the rounded clip on the SwiftUI content in `pickerContent`.
+    private static let panelCornerRadius: CGFloat = 12
 
     init(
         historyService: HistoryService,
@@ -105,6 +109,7 @@ final class PickerController {
         NSLog("Fifi[picker] show()")
         captureCurrentPasteboard()
         applySettingsToViewModel()
+        applyWindowOpacity()
         resizePanel()
         positionPanel()
         viewModel.reload()
@@ -297,6 +302,71 @@ final class PickerController {
         )
     }
 
+    /// Applies the settings-driven transparency to the whole panel: the
+    /// window alpha plus a frosted backdrop that fades in behind the content
+    /// as the panel gets more see-through. Applying on show is enough — the
+    /// outside-click monitor hides the panel whenever the settings window is
+    /// used, so it is never visible while the setting changes.
+    private func applyWindowOpacity() {
+        let settings = settingsStore.settings
+        panel.alphaValue = CGFloat(settings.currentWindowOpacity)
+        applyWindowBlur(intensity: settings.windowBlurIntensity)
+    }
+
+    /// Transparency alone would show a razor-sharp desktop through the
+    /// panel, so a frosted backdrop sits behind the content. A visual effect
+    /// view has no intensity knob: its own alpha is the strength, blending
+    /// the blurred desktop with the panel's ordinary background rather than
+    /// replacing it.
+    private func applyWindowBlur(intensity: Double) {
+        guard let backdrop = ensurePanelBackdrop() else { return }
+        let target = CGFloat(intensity)
+        let off = target <= 0.001
+        backdrop.isHidden = off
+        // An inactive effect view stops sampling the desktop, so an opaque
+        // panel pays nothing for the disabled feature.
+        backdrop.state = off ? .inactive : .active
+        backdrop.alphaValue = target
+    }
+
+    /// The backdrop is the first subview of the hosting view, so every
+    /// SwiftUI layer draws over it. `setContent` replaces the content view
+    /// on language changes, hence the re-parent check rather than a one-shot
+    /// install.
+    private func ensurePanelBackdrop() -> NSVisualEffectView? {
+        guard let content = panel.contentView else { return nil }
+        if let backdrop = panelBackdrop, backdrop.superview == content { return backdrop }
+        panelBackdrop?.removeFromSuperview()
+        let backdrop = NSVisualEffectView(frame: content.bounds)
+        backdrop.material = .underWindowBackground
+        backdrop.blendingMode = .behindWindow
+        backdrop.state = .inactive
+        backdrop.isEmphasized = false
+        backdrop.alphaValue = 0
+        backdrop.isHidden = true
+        backdrop.autoresizingMask = [.width, .height]
+        backdrop.maskImage = Self.backdropMask()
+        content.addSubview(backdrop, positioned: .below, relativeTo: nil)
+        panelBackdrop = backdrop
+        return backdrop
+    }
+
+    /// The SwiftUI content is clipped to a rounded rect, so the
+    /// behind-window blur has to carry the same mask or its square corners
+    /// would poke out past the content.
+    private static func backdropMask() -> NSImage {
+        let radius = panelCornerRadius
+        let size = NSSize(width: radius * 2 + 1, height: radius * 2 + 1)
+        let mask = NSImage(size: size, flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        mask.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        mask.resizingMode = .stretch
+        return mask
+    }
+
     private func installKeyMonitor() {
         removeKeyMonitor()
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -430,7 +500,7 @@ final class PickerController {
         PickerView(viewModel: viewModel, settingsStore: settingsStore, thumbnailLoader: thumbnailLoader, blobStore: blobStore)
             .id(settingsStore.appLanguage)
             .ignoresSafeArea()
-            .clipShape(.rect(cornerRadius: 12))
+            .clipShape(.rect(cornerRadius: Self.panelCornerRadius))
     }
 
     private func refreshLocalizedContent() {

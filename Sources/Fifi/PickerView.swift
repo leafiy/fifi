@@ -45,8 +45,14 @@ struct PickerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Opaque window background to match daisy/eddy; the panel window
-        // itself is transparent, so this fill is the visible surface.
-        .background(Color(nsColor: .windowBackgroundColor))
+        // itself is transparent, so this fill is the visible surface. It
+        // thins out by the blur strength when window transparency is on —
+        // at full coverage it would paint straight over the frosted
+        // backdrop behind the hosting view.
+        .background(
+            Color(nsColor: .windowBackgroundColor)
+                .opacity(1 - settingsStore.settings.windowBlurIntensity)
+        )
         .onAppear(perform: handleAppear)
         .onChange(of: showFilters) {
             clearHiddenFiltersIfNeeded()

@@ -7,7 +7,7 @@ struct PickerSettingsPane: View {
     @ObservedObject var settingsStore: SettingsStore
 
     var body: some View {
-        SettingsPane(L("Picker"), systemImage: "rectangle.and.text.magnifyingglass", height: 420) {
+        SettingsPane(L("Picker"), systemImage: "rectangle.and.text.magnifyingglass", height: 560) {
             Section(L("Layout")) {
                 stepperRow(L("Width"), binding: intBinding(\.pickerWidth, lower: 320, upper: 900), range: 320...900, step: 20)
                 stepperRow(L("Height"), binding: intBinding(\.pickerHeight, lower: 320, upper: 1000), range: 320...1000, step: 20)
@@ -26,6 +26,18 @@ struct PickerSettingsPane: View {
                 }
                 Toggle(L("Fuzzy ranking"), isOn: boolBinding(\.fuzzyRanking))
                 Toggle(L("Number shortcuts (⌘1–0)"), isOn: boolBinding(\.numberShortcuts))
+            }
+            Section(L("Window")) {
+                Toggle(L("Window Transparency"), isOn: boolBinding(\.windowOpacityEnabled))
+                Text(L("Make the whole picker window translucent"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if settingsStore.settings.windowOpacityEnabled {
+                    WindowOpacitySlider(value: opacityBinding)
+                    Text(L("Transparency automatically blurs the background behind the window, more so the more transparent it is"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -59,6 +71,15 @@ struct PickerSettingsPane: View {
         )
     }
 
+    private var opacityBinding: Binding<Double> {
+        Binding(
+            get: { settingsStore.settings.windowOpacity },
+            set: { newValue in
+                settingsStore.update { $0.windowOpacity = AppSettings.clampedOpacity(newValue) }
+            }
+        )
+    }
+
     private var densityBinding: Binding<RowDensity> {
         Binding(
             get: { settingsStore.settings.rowDensity },
@@ -71,6 +92,38 @@ struct PickerSettingsPane: View {
             get: { settingsStore.settings.sortOrder },
             set: { newValue in settingsStore.update { $0.sortOrder = newValue } }
         )
+    }
+}
+
+/// Opacity slider that only writes the setting when the drag ends: every
+/// write persists the whole settings file to disk, which is far too heavy
+/// per drag frame.
+private struct WindowOpacitySlider: View {
+    @Binding var value: Double
+
+    @State private var draft: Double?
+
+    var body: some View {
+        LabeledContent(L("Opacity")) {
+            HStack(spacing: LeafiyDesign.Spacing.s) {
+                Slider(
+                    value: Binding(
+                        get: { draft ?? value },
+                        set: { draft = $0 }
+                    ),
+                    in: AppSettings.windowOpacityRange,
+                    onEditingChanged: { editing in
+                        guard !editing, let settled = draft else { return }
+                        draft = nil
+                        value = settled
+                    }
+                )
+                Text(String(format: "%.0f%%", (draft ?? value) * 100))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(width: 40, alignment: .trailing)
+            }
+        }
     }
 }
 

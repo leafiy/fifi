@@ -95,6 +95,10 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
     public var fuzzyRanking: Bool
     public var privacy: PrivacySettings
     public var quickShare: QuickShareSettings
+    /// Window transparency for the picker panel — Fifi's main window. Off
+    /// by default; the level is clamped to `windowOpacityRange`.
+    public var windowOpacityEnabled: Bool
+    public var windowOpacity: Double
 
     public static var defaults: AppSettings { AppSettings() }
 
@@ -119,7 +123,9 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
         sortOrder: HistorySortOrder = .recency,
         fuzzyRanking: Bool = false,
         privacy: PrivacySettings = PrivacySettings(),
-        quickShare: QuickShareSettings = QuickShareSettings(keyPrefix: "fifi")
+        quickShare: QuickShareSettings = QuickShareSettings(keyPrefix: "fifi"),
+        windowOpacityEnabled: Bool = false,
+        windowOpacity: Double = AppSettings.defaultWindowOpacity
     ) {
         self.hotkeyShortcut = hotkeyShortcut
         self.selectionBehavior = selectionBehavior
@@ -142,6 +148,8 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
         self.fuzzyRanking = fuzzyRanking
         self.privacy = privacy
         self.quickShare = quickShare
+        self.windowOpacityEnabled = windowOpacityEnabled
+        self.windowOpacity = AppSettings.clampedOpacity(windowOpacity)
     }
 
     // Tolerant decoding: V1 settings JSON lacks every V2 key; missing keys
@@ -170,6 +178,45 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
         fuzzyRanking = try container.decodeIfPresent(Bool.self, forKey: .fuzzyRanking) ?? defaults.fuzzyRanking
         privacy = try container.decodeIfPresent(PrivacySettings.self, forKey: .privacy) ?? defaults.privacy
         quickShare = try container.decodeIfPresent(QuickShareSettings.self, forKey: .quickShare) ?? defaults.quickShare
+        windowOpacityEnabled = try container.decodeIfPresent(Bool.self, forKey: .windowOpacityEnabled) ?? defaults.windowOpacityEnabled
+        windowOpacity = AppSettings.clampedOpacity(try container.decodeIfPresent(Double.self, forKey: .windowOpacity) ?? defaults.windowOpacity)
+    }
+
+    // MARK: - Window transparency
+
+    /// Fully opaque is the top of the range; below `minWindowOpacity` the
+    /// window stops being usable, so the slider bottoms out there.
+    public static let minWindowOpacity: Double = 0.1
+    public static let defaultWindowOpacity: Double = 0.9
+    public static let windowOpacityRange: ClosedRange<Double> = minWindowOpacity...1
+
+    public static func clampedOpacity(_ value: Double) -> Double {
+        guard value.isFinite else { return defaultWindowOpacity }
+        return min(max(value, minWindowOpacity), 1)
+    }
+
+    /// The alpha the picker window should carry right now. Disabled means
+    /// fully opaque regardless of the stored level.
+    public var currentWindowOpacity: Double {
+        windowOpacityEnabled ? windowOpacity : 1
+    }
+
+    /// A translucent window that shows a razor-sharp desktop through it is
+    /// unreadable, so transparency drags a frosted backdrop along with it.
+    /// The strength is derived, never configured: none at fully opaque,
+    /// rising to `maxWindowBlur` at `minWindowOpacity`. It stops short of 1
+    /// so the window keeps some of its own colour at every level.
+    public static let maxWindowBlur: Double = 0.8
+
+    public static func windowBlur(forOpacity opacity: Double) -> Double {
+        let transparency = (1 - clampedOpacity(opacity)) / (1 - minWindowOpacity)
+        return maxWindowBlur * transparency
+    }
+
+    /// Blur strength that pairs with `currentWindowOpacity`; zero while
+    /// transparency is off, since the window is then fully opaque.
+    public var windowBlurIntensity: Double {
+        windowOpacityEnabled ? AppSettings.windowBlur(forOpacity: windowOpacity) : 0
     }
 
     public var cleanupPolicy: CleanupPolicy {
