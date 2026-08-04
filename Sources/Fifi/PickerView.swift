@@ -45,14 +45,22 @@ struct PickerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Opaque window background to match daisy/eddy; the panel window
-        // itself is transparent, so this fill is the visible surface. It
-        // thins out by the blur strength when window transparency is on —
-        // at full coverage it would paint straight over the frosted
-        // backdrop behind the hosting view.
-        .background(
-            Color(nsColor: .windowBackgroundColor)
-                .opacity(1 - settingsStore.settings.windowBlurIntensity)
-        )
+        // itself is transparent, so this fill is the visible surface. With
+        // window transparency on, a frosted desktop backdrop sits underneath
+        // and the fill thins out by the blur strength — the effect view
+        // itself must stay at full alpha (NSVisualEffectView does not
+        // composite reliably with a fractional alphaValue), so the fill's
+        // remaining coverage is what meters the blur.
+        .background {
+            ZStack {
+                if settingsStore.settings.windowOpacityEnabled {
+                    WindowBlurBackdrop()
+                }
+                Color(nsColor: .windowBackgroundColor)
+                    .opacity(1 - settingsStore.settings.windowBlurIntensity)
+            }
+            .ignoresSafeArea()
+        }
         .onAppear(perform: handleAppear)
         .onChange(of: showFilters) {
             clearHiddenFiltersIfNeeded()
@@ -268,6 +276,25 @@ struct PickerView: View {
         viewModel.sourceAppBundleID = nil
         viewModel.dateRange = .any
     }
+}
+
+/// Frosted desktop backdrop for the translucent picker. Blends the blurred
+/// content behind the panel with the window fill layered on top; kept at
+/// full alpha and clipped by the panel's rounded `clipShape` like any other
+/// SwiftUI layer.
+private struct WindowBlurBackdrop: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .underWindowBackground
+        view.blendingMode = .behindWindow
+        // The panel is non-activating and never becomes main; .active keeps
+        // the desktop sample live regardless of window state.
+        view.state = .active
+        view.isEmphasized = false
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
 
 private struct PickerRowModel: Identifiable {
