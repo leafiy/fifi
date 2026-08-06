@@ -386,7 +386,11 @@ final class PickerController {
             return true
         }
 
-        if (modifiers.isEmpty || modifiers == .function || modifiers.contains(.command)), keyCode == kVK_Delete {
+        if Self.shouldDeleteSelected(
+            keyCode: keyCode,
+            modifiers: modifiers,
+            isEditingText: panel.firstResponder is NSTextView
+        ) {
             viewModel.deleteSelected()
             return true
         }
@@ -417,6 +421,16 @@ final class PickerController {
         default:
             return false
         }
+    }
+
+    static func shouldDeleteSelected(
+        keyCode: Int,
+        modifiers: NSEvent.ModifierFlags,
+        isEditingText: Bool
+    ) -> Bool {
+        !isEditingText
+            && (modifiers.isEmpty || modifiers == .function || modifiers.contains(.command))
+            && keyCode == kVK_Delete
     }
 
     private static func shortcutIndex(for keyCode: Int) -> Int? {
