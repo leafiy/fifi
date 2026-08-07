@@ -19,6 +19,9 @@ struct PickerRowView: View {
     let density: RowDensity
     let showShortcut: Bool
     let showSourceApp: Bool
+    let showItemSize: Bool
+    let showItemTime: Bool
+    let showImageResolution: Bool
     let canQuickShare: Bool
     let thumbnailLoader: ThumbnailLoader
     let onActivate: () -> Void
@@ -84,7 +87,7 @@ struct PickerRowView: View {
             } else {
                 VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xs) {
                     rowPreview
-                    if density != .compact { metadataLine }
+                    if density != .compact && hasMetadataLine { metadataLine }
                 }
             }
         }
@@ -152,7 +155,7 @@ struct PickerRowView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
-                if density != .compact { metadataLine }
+                if density != .compact && hasMetadataLine { metadataLine }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -202,6 +205,13 @@ struct PickerRowView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Whether the details line has anything to render: state indicators
+    /// (pin, memory-only) always count; the text details only when their
+    /// toggles leave something visible. An empty line costs zero pixels.
+    private var hasMetadataLine: Bool {
+        item.isPinned || HistoryService.isMemoryItem(item.id) || !metadataText.isEmpty
+    }
+
     private var metadataLine: some View {
         HStack(spacing: LeafiyDesign.Spacing.xs) {
             if item.isPinned {
@@ -214,8 +224,10 @@ struct PickerRowView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            Text(metadataText)
-                .lineLimit(1)
+            if !metadataText.isEmpty {
+                Text(metadataText)
+                    .lineLimit(1)
+            }
         }
         .font(.caption2)
         .foregroundStyle(.secondary)
@@ -262,7 +274,10 @@ struct PickerRowView: View {
     }
 
     private var imageDetailText: String? {
-        let detail = [imageDimensions, fileSizeText].compactMap(\.self).joined(separator: " · ")
+        let detail = [
+            showImageResolution ? imageDimensions : nil,
+            showItemSize ? fileSizeText : nil,
+        ].compactMap(\.self).joined(separator: " · ")
         return detail.isEmpty ? nil : detail
     }
 
@@ -288,9 +303,9 @@ struct PickerRowView: View {
 
     private var metadataText: String {
         var parts: [String] = []
-        if let itemMetricText { parts.append(itemMetricText) }
+        if showItemSize, let itemMetricText { parts.append(itemMetricText) }
         if showSourceApp { parts.append(item.sourceAppName ?? L("Unknown")) }
-        parts.append(relativeUpdatedAt)
+        if showItemTime { parts.append(relativeUpdatedAt) }
         return parts.joined(separator: " · ")
     }
 
@@ -311,7 +326,7 @@ struct PickerRowView: View {
     }
 
     private var fileDetailText: String {
-        [filePath, fileSizeText].compactMap(\.self).joined(separator: " · ")
+        [filePath, showItemSize ? fileSizeText : nil].compactMap(\.self).joined(separator: " · ")
     }
 
     private var fileIcon: NSImage { NSWorkspace.shared.icon(forFile: filePath) }

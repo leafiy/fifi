@@ -10,6 +10,8 @@ struct PreviewPanel: View {
     let blobStore: BlobStore
     @ObservedObject var viewModel: PickerViewModel
     let canQuickShare: Bool
+    let showSourceApp: Bool
+    let showImageResolution: Bool
 
     var body: some View {
         Group {
@@ -43,7 +45,7 @@ struct PreviewPanel: View {
                     .help(L("Sensitive content"))
             }
             Spacer()
-            if let app = item.sourceAppName {
+            if showSourceApp, let app = item.sourceAppName {
                 Text(app)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -118,7 +120,7 @@ struct PreviewPanel: View {
     }
 
     private func imageDetail(_ item: ClipboardItem) -> some View {
-        ImageDetail(item: item, blobStore: blobStore)
+        ImageDetail(item: item, blobStore: blobStore, showResolution: showImageResolution)
     }
 
     private func fileDetail(_ item: ClipboardItem) -> some View {
@@ -211,6 +213,7 @@ private struct TextDetail: View {
 private struct ImageDetail: View {
     let item: ClipboardItem
     let blobStore: BlobStore
+    let showResolution: Bool
     @State private var image: NSImage?
 
     var body: some View {
@@ -229,9 +232,11 @@ private struct ImageDetail: View {
     }
 
     /// Localized "Image" label plus pixel dimensions when the capture recorded
-    /// them, replacing the English preview text baked in at capture time.
+    /// them (and the resolution detail is switched on), replacing the English
+    /// preview text baked in at capture time.
     private var caption: String {
-        guard let json = item.metadataJSON, let data = json.data(using: .utf8),
+        guard showResolution,
+              let json = item.metadataJSON, let data = json.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let width = Self.dimension(object["width"]), let height = Self.dimension(object["height"]),
               width > 0, height > 0 else {

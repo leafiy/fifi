@@ -37,7 +37,9 @@ struct PickerView: View {
                     item: viewModel.selectedItem,
                     blobStore: blobStore,
                     viewModel: viewModel,
-                    canQuickShare: settingsStore.settings.quickShare.isConfigured
+                    canQuickShare: settingsStore.settings.quickShare.isConfigured,
+                    showSourceApp: showSourceApp,
+                    showImageResolution: settingsStore.settings.showImageResolution
                 )
                     .frame(width: Self.previewPanelWidth)
                     .frame(maxHeight: .infinity)
@@ -214,6 +216,9 @@ struct PickerView: View {
                                 density: density,
                                 showShortcut: settingsStore.settings.numberShortcuts,
                                 showSourceApp: showSourceApp,
+                                showItemSize: settingsStore.settings.showItemSize,
+                                showItemTime: settingsStore.settings.showItemTime,
+                                showImageResolution: settingsStore.settings.showImageResolution,
                                 canQuickShare: settingsStore.settings.quickShare.isConfigured,
                                 thumbnailLoader: thumbnailLoader,
                                 onActivate: { viewModel.activate(item: row.item) },

@@ -7,7 +7,7 @@ struct PickerSettingsPane: View {
     @ObservedObject var settingsStore: SettingsStore
 
     var body: some View {
-        SettingsPane(L("Picker"), systemImage: "rectangle.and.text.magnifyingglass", height: 480) {
+        SettingsPane(L("Picker"), systemImage: "rectangle.and.text.magnifyingglass", height: 620) {
             Section(L("Layout")) {
                 stepperRow(L("Width"), binding: intBinding(\.pickerWidth, lower: 320, upper: 900), range: 320...900, step: 20)
                 stepperRow(L("Height"), binding: intBinding(\.pickerHeight, lower: 320, upper: 1000), range: 320...1000, step: 20)
@@ -17,9 +17,14 @@ struct PickerSettingsPane: View {
                 }
                 Toggle(L("Show picker preview"), isOn: boolBinding(\.showPreviewPanel))
             }
+            Section(L("Details")) {
+                Toggle(L("Show app source"), isOn: boolBinding(\.showSourceApp))
+                Toggle(L("Show size"), isOn: boolBinding(\.showItemSize))
+                Toggle(L("Show time"), isOn: boolBinding(\.showItemTime))
+                Toggle(L("Show image resolution"), isOn: boolBinding(\.showImageResolution))
+            }
             Section(L("Search")) {
                 Toggle(L("Show filters in picker"), isOn: boolBinding(\.showPickerFilters))
-                Toggle(L("Show app source"), isOn: boolBinding(\.showSourceApp))
                 Picker(L("Sort order"), selection: sortBinding) {
                     Text(L("Most recent")).tag(HistorySortOrder.recency)
                     Text(L("Most used")).tag(HistorySortOrder.mostUsed)

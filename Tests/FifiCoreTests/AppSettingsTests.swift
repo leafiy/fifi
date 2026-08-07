@@ -100,4 +100,13 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertFalse(decoded.windowOpacityEnabled)
         XCTAssertEqual(decoded.windowBlurIntensity, 0)
     }
+
+    func testDetailTogglesDefaultOn() {
+        let settings = AppSettings.defaults
+
+        XCTAssertTrue(settings.showSourceApp)
+        XCTAssertTrue(settings.showItemSize)
+        XCTAssertTrue(settings.showItemTime)
+        XCTAssertTrue(settings.showImageResolution)
+    }
 }

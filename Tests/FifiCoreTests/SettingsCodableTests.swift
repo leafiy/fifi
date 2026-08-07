@@ -37,6 +37,9 @@ final class SettingsCodableTests: XCTestCase {
         XCTAssertFalse(decoded.showPreviewPanel)
         XCTAssertFalse(decoded.showPickerFilters)
         XCTAssertTrue(decoded.showSourceApp)
+        XCTAssertTrue(decoded.showItemSize)
+        XCTAssertTrue(decoded.showItemTime)
+        XCTAssertTrue(decoded.showImageResolution)
         XCTAssertEqual(try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(decoded)), decoded)
     }
 
@@ -57,6 +60,9 @@ final class SettingsCodableTests: XCTestCase {
             showPreviewPanel: true,
             showPickerFilters: true,
             showSourceApp: false,
+            showItemSize: false,
+            showItemTime: false,
+            showImageResolution: false,
             numberShortcuts: false,
             sortOrder: .mostUsed,
             fuzzyRanking: true,

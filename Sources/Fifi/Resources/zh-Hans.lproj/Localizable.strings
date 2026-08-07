@@ -135,6 +135,10 @@
 "Comfortable" = "宽松";
 "Compact" = "紧凑";
 "Show preview panel" = "显示预览面板";
+"Details" = "详细信息";
+"Show size" = "显示大小";
+"Show time" = "显示时间";
+"Show image resolution" = "显示图像分辨率";
 "Search" = "搜索";
 "Sort order" = "排序方式";
 "Most recent" = "最近使用";

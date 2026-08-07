@@ -90,6 +90,13 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
     public var showPreviewPanel: Bool
     public var showPickerFilters: Bool
     public var showSourceApp: Bool
+    /// Row Details visibility (all on by default): item size — character
+    /// count for text, byte size for images and files.
+    public var showItemSize: Bool
+    /// Row Details visibility: relative capture time.
+    public var showItemTime: Bool
+    /// Row Details visibility: image pixel dimensions.
+    public var showImageResolution: Bool
     public var numberShortcuts: Bool
     public var sortOrder: HistorySortOrder
     public var fuzzyRanking: Bool
@@ -119,6 +126,9 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
         showPreviewPanel: Bool = false,
         showPickerFilters: Bool = false,
         showSourceApp: Bool = true,
+        showItemSize: Bool = true,
+        showItemTime: Bool = true,
+        showImageResolution: Bool = true,
         numberShortcuts: Bool = true,
         sortOrder: HistorySortOrder = .recency,
         fuzzyRanking: Bool = false,
@@ -142,6 +152,9 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
         self.showPreviewPanel = showPreviewPanel
         self.showPickerFilters = showPickerFilters
         self.showSourceApp = showSourceApp
+        self.showItemSize = showItemSize
+        self.showItemTime = showItemTime
+        self.showImageResolution = showImageResolution
         self.numberShortcuts = numberShortcuts
         self.sortOrder = sortOrder
         self.fuzzyRanking = fuzzyRanking
@@ -171,6 +184,9 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
         showPreviewPanel = try container.decodeIfPresent(Bool.self, forKey: .showPreviewPanel) ?? defaults.showPreviewPanel
         showPickerFilters = try container.decodeIfPresent(Bool.self, forKey: .showPickerFilters) ?? defaults.showPickerFilters
         showSourceApp = try container.decodeIfPresent(Bool.self, forKey: .showSourceApp) ?? defaults.showSourceApp
+        showItemSize = try container.decodeIfPresent(Bool.self, forKey: .showItemSize) ?? defaults.showItemSize
+        showItemTime = try container.decodeIfPresent(Bool.self, forKey: .showItemTime) ?? defaults.showItemTime
+        showImageResolution = try container.decodeIfPresent(Bool.self, forKey: .showImageResolution) ?? defaults.showImageResolution
         numberShortcuts = try container.decodeIfPresent(Bool.self, forKey: .numberShortcuts) ?? defaults.numberShortcuts
         sortOrder = try container.decodeIfPresent(HistorySortOrder.self, forKey: .sortOrder) ?? defaults.sortOrder
         fuzzyRanking = try container.decodeIfPresent(Bool.self, forKey: .fuzzyRanking) ?? defaults.fuzzyRanking
