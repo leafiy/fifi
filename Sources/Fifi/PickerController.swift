@@ -44,9 +44,12 @@ final class PickerController {
         self.quickShareService = QuickShareService(blobStore: blobStore)
         let panel = LeafiyFloatingPanel(
             configuration: LeafiyFloatingPanelConfiguration(
+                level: .normal,
                 canBecomeKey: true,
                 isMovable: true,
-                hasShadow: true
+                hasShadow: true,
+                identifier: "picker",
+                title: L("Clipboard History")
             ),
             content: Self.pickerContent(
                 viewModel: viewModel,
@@ -480,4 +483,3 @@ final class PickerController {
         if let languageObserver { NotificationCenter.default.removeObserver(languageObserver) }
     }
 }
-

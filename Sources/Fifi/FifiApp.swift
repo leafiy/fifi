@@ -52,6 +52,9 @@ struct FifiApp: App {
             FifiSettingsView(appState: appState)
                 .id(appState.appLanguage)
         }
+        .commands {
+            FifiCommands(appState: appState)
+        }
     }
 }
 
@@ -323,6 +326,24 @@ private struct FifiMenuContent: View {
     }
 }
 
+private struct FifiCommands: Commands {
+    @ObservedObject var appState: FifiAppState
+
+    var body: some Commands {
+        CommandGroup(after: .appSettings) {
+            if let shortcut = appState.settingsStore?.settings.hotkeyShortcut,
+               let spec = KeyboardShortcutSpec(parsing: shortcut) {
+                Divider()
+                LeafiyShortcutMenuButton(
+                    L("Open Picker"),
+                    shortcut: spec,
+                    action: appState.openPicker
+                )
+            }
+        }
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var database: Database?
@@ -343,7 +364,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var quickShareStatusObserver: NSObjectProtocol?
     private var lastRegisteredShortcut: String?
     private var lastLaunchAtLogin: Bool?
-    private var lastDockIcon: Bool?
     private var lastPauseState: Bool?
     private var warnedHotkeyConflict = false
     private var lastAppearance: AppearanceMode?
@@ -353,6 +373,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        LeafiyApplicationMode.enforceStandard()
         SoftwareUpdateController.shared.startAutomaticCheck()
 
         do {
@@ -378,6 +399,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         scheduleCleanup()
+    }
+
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        pickerController?.show()
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -709,7 +738,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appState.appLanguage = language
         registerHotKeyIfNeeded(settings.hotkeyShortcut)
         applyLaunchAtLoginIfNeeded(settings)
-        applyDockIconIfNeeded(settings)
         applyRecordingStateIfNeeded(settings)
         applyAppearanceIfNeeded(settings)
     }
@@ -739,12 +767,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard lastLaunchAtLogin != settings.launchAtLogin else { return }
         lastLaunchAtLogin = settings.launchAtLogin
         LeafiyLaunchAtLogin.setEnabled(settings.launchAtLogin)
-    }
-
-    private func applyDockIconIfNeeded(_ settings: AppSettings) {
-        guard lastDockIcon != settings.showDockIcon else { return }
-        lastDockIcon = settings.showDockIcon
-        LeafiyDockIcon.setVisible(settings.showDockIcon)
     }
 
     private func applyRecordingStateIfNeeded(_ settings: AppSettings) {
@@ -836,8 +858,7 @@ private struct GeneralSettingsPane: View {
     var body: some View {
         LeafiyGeneralPane(
             language: appLanguageBinding,
-            launchAtLogin: launchAtLoginBinding,
-            dockIcon: dockIconBinding
+            launchAtLogin: launchAtLoginBinding
         ) {
             LabeledContent(L("Global shortcut")) {
                 ShortcutField(spec: shortcutBinding)
@@ -908,17 +929,6 @@ private struct GeneralSettingsPane: View {
             set: { newValue in
                 settingsStore.update { settings in
                     settings.launchAtLogin = newValue
-                }
-            }
-        )
-    }
-
-    private var dockIconBinding: Binding<Bool> {
-        Binding(
-            get: { settingsStore.settings.showDockIcon },
-            set: { newValue in
-                settingsStore.update { settings in
-                    settings.showDockIcon = newValue
                 }
             }
         )
