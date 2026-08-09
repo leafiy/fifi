@@ -40,8 +40,9 @@ struct FifiApp: App {
     }
     var body: some Scene {
         MenuBarExtra {
-            FifiMenuContent(appState: appState)
-                .id(appState.appLanguage)
+            LeafiyFamilyMenu(language: appState.appLanguage) {
+                FifiMenuContent(appState: appState)
+            }
         } label: {
             FifiMenuBarIcon(isUploading: appState.isQuickShareUploading)
                 .id(appState.appLanguage)
@@ -272,15 +273,8 @@ final class FifiAppState: ObservableObject {
 private struct FifiMenuBarIcon: View {
     let isUploading: Bool
 
-    private static let baseIcon = LeafiyMenuBarIconRenderer.baseIcon(
-        AppDelegate.fifiImage(),
-        symbolFallback: "clipboard",
-        accessibilityDescription: "Fifi"
-    )
-
     var body: some View {
-        Image(nsImage: LeafiyMenuBarIconRenderer.image(base: Self.baseIcon, status: isUploading ? .busy : .idle))
-            .accessibilityLabel(Text(verbatim: "Fifi"))
+        LeafiyMenuBarLabel(status: isUploading ? .busy : .idle)
     }
 }
 
@@ -322,7 +316,6 @@ private struct FifiMenuContent: View {
             }
         }
 
-        LeafiyMenuTail()
     }
 }
 
@@ -345,7 +338,7 @@ private struct FifiCommands: Commands {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: LeafiyAppDelegate {
     private var database: Database?
     private var historyStore: HistoryStore?
     private var blobStore: BlobStore?
@@ -372,10 +365,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         static let picker: UInt32 = 1
     }
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        LeafiyApplicationMode.enforceStandard()
-        SoftwareUpdateController.shared.startAutomaticCheck()
-
+    override func leafiyApplicationDidFinishLaunching(_ notification: Notification) {
         do {
             try configureServices()
         } catch {
@@ -409,7 +399,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
+    override func leafiyApplicationWillTerminate(_ notification: Notification) {
         cleanupTimer?.invalidate()
         expiryTimer?.invalidate()
         if let quickShareStatusObserver {
@@ -679,14 +669,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
-    static func fifiImage() -> NSImage? {
-        if let url = Bundle.main.url(forResource: "fifi", withExtension: "png"),
-           let image = NSImage(contentsOf: url) {
-            return image
-        }
-        return NSImage(named: "Fifi")
-    }
-
     private func warnHotkeyConflict(shortcut: KeyboardShortcutSpec) {
         let display = shortcut.display
         appState.hotkeyRegistrationMessage = String(format: L("Couldn’t register %@; another app may already own it."), display)
@@ -815,7 +797,7 @@ private struct FifiSettingsView: View {
     @ObservedObject var appState: FifiAppState
 
     var body: some View {
-        SettingsScaffold {
+        LeafiyFamilySettings(language: appState.appLanguage) {
             if let settingsStore = appState.settingsStore,
                let historyService = appState.historyService,
                let ignoreRulesStore = appState.ignoreRulesStore {
@@ -843,10 +825,6 @@ private struct FifiSettingsView: View {
                     }
                 }
             }
-            AboutPane(
-                tagline: L("A fast, low-resource clipboard history manager for macOS."),
-                copyright: L("© 2026 Leafiy")
-            )
         }
     }
 }

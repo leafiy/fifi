@@ -4,6 +4,10 @@
 set -eu
 cd "$(dirname "$0")"
 
+FAMILY_CONTRACT="../leafiy-ui/scripts/check-app-family-contract.sh"
+[ -x "$FAMILY_CONTRACT" ] || { echo "error: shared app-family contract not found: $FAMILY_CONTRACT"; exit 1; }
+"$FAMILY_CONTRACT" "$PWD"
+
 TEAM_ID="${TEAM_ID:-Q478GZN2AV}"
 SIGN_IDENTITY="${SIGN_IDENTITY:-}"
 
@@ -22,8 +26,8 @@ if [ "${UNIVERSAL:-0}" = "1" ]; then
 fi
 
 SCRATCH_PATH="${SCRATCH_PATH:-"${TMPDIR%/}/leafiy-swift-builds/fifi"}"
-swift build -c release $ARCH_FLAGS --scratch-path "$SCRATCH_PATH"
-BIN_DIR=$(swift build -c release $ARCH_FLAGS --scratch-path "$SCRATCH_PATH" --show-bin-path)
+swift build -c release --disable-build-manifest-caching $ARCH_FLAGS --scratch-path "$SCRATCH_PATH"
+BIN_DIR=$(swift build -c release --disable-build-manifest-caching $ARCH_FLAGS --scratch-path "$SCRATCH_PATH" --show-bin-path)
 BUILD_ROOT="${BUILD_ROOT:-"$PWD/build.noindex"}"
 APP_OUTPUT_DIR="${APP_OUTPUT_DIR:-"$BUILD_ROOT/app"}"
 mkdir -p "$BUILD_ROOT"

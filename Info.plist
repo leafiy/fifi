@@ -35,6 +35,8 @@
 	<string>14.0</string>
 	<key>LeafiyUpdateFeedURL</key>
 	<string>https://leafiy.com/updates/fifi.json</string>
+	<key>LeafiyMenuBarIconFile</key>
+	<string>fifi.png</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSPrincipalClass</key>
