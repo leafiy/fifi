@@ -17,7 +17,7 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.appLanguage, "system")
         XCTAssertFalse(settings.quickShare.isConfigured)
         XCTAssertEqual(settings.quickShare.keyPrefix, "fifi")
-        XCTAssertTrue(settings.showDockIcon)
+        XCTAssertEqual(settings.applicationIconMode, .menuBar)
     }
 
     func testEncodingRoundTripPreservesAppLanguage() throws {
@@ -28,7 +28,7 @@ final class AppSettingsTests: XCTestCase {
             retentionDays: 7,
             maxStorageMB: 128,
             launchAtLogin: true,
-            showDockIcon: false,
+            applicationIconMode: .dock,
             isRecordingPaused: true,
             appLanguage: "zh-Hans"
         )
@@ -36,7 +36,7 @@ final class AppSettingsTests: XCTestCase {
         let decoded = try JSONDecoder().decode(AppSettings.self, from: try JSONEncoder().encode(settings))
 
         XCTAssertEqual(decoded.appLanguage, "zh-Hans")
-        XCTAssertFalse(decoded.showDockIcon)
+        XCTAssertEqual(decoded.applicationIconMode, .dock)
     }
 
     func testEncodingRoundTripPreservesQuickShareSettings() throws {

@@ -39,7 +39,7 @@ struct FifiApp: App {
         )
     }
     var body: some Scene {
-        MenuBarExtra {
+        LeafiyMenuBarExtra {
             LeafiyFamilyMenu(language: appState.appLanguage) {
                 FifiMenuContent(appState: appState)
             }
@@ -47,8 +47,6 @@ struct FifiApp: App {
             FifiMenuBarIcon(isUploading: appState.isQuickShareUploading)
                 .id(appState.appLanguage)
         }
-        .menuBarExtraStyle(.menu)
-
         Settings {
             FifiSettingsView(appState: appState)
                 .id(appState.appLanguage)
@@ -718,6 +716,7 @@ final class AppDelegate: LeafiyAppDelegate {
         let language = AppLanguage(rawValue: settings.appLanguage) ?? .system
         LeafiyLocalization.language = language
         appState.appLanguage = language
+        LeafiyApplicationPresentation.shared.apply(settings.applicationIconMode)
         registerHotKeyIfNeeded(settings.hotkeyShortcut)
         applyLaunchAtLoginIfNeeded(settings)
         applyRecordingStateIfNeeded(settings)
@@ -836,7 +835,8 @@ private struct GeneralSettingsPane: View {
     var body: some View {
         LeafiyGeneralPane(
             language: appLanguageBinding,
-            launchAtLogin: launchAtLoginBinding
+            launchAtLogin: launchAtLoginBinding,
+            applicationIconMode: applicationIconModeBinding
         ) {
             LabeledContent(L("Global shortcut")) {
                 ShortcutField(spec: shortcutBinding)
@@ -907,6 +907,17 @@ private struct GeneralSettingsPane: View {
             set: { newValue in
                 settingsStore.update { settings in
                     settings.launchAtLogin = newValue
+                }
+            }
+        )
+    }
+
+    private var applicationIconModeBinding: Binding<LeafiyApplicationIconMode> {
+        Binding(
+            get: { settingsStore.settings.applicationIconMode },
+            set: { newValue in
+                settingsStore.update { settings in
+                    settings.applicationIconMode = newValue
                 }
             }
         )

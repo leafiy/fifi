@@ -80,7 +80,7 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
     public var retentionDays: Int
     public var maxStorageMB: Int
     public var launchAtLogin: Bool
-    public var showDockIcon: Bool
+    public var applicationIconMode: LeafiyApplicationIconMode
     public var isRecordingPaused: Bool
     public var appLanguage: String
     public var appearance: AppearanceMode
@@ -116,7 +116,7 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
         retentionDays: Int = 30,
         maxStorageMB: Int = 512,
         launchAtLogin: Bool = false,
-        showDockIcon: Bool = true,
+        applicationIconMode: LeafiyApplicationIconMode = .menuBar,
         isRecordingPaused: Bool = false,
         appLanguage: String = "system",
         appearance: AppearanceMode = .system,
@@ -142,7 +142,7 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
         self.retentionDays = retentionDays
         self.maxStorageMB = maxStorageMB
         self.launchAtLogin = launchAtLogin
-        self.showDockIcon = showDockIcon
+        self.applicationIconMode = applicationIconMode
         self.isRecordingPaused = isRecordingPaused
         self.appLanguage = appLanguage
         self.appearance = appearance
@@ -174,7 +174,10 @@ public struct AppSettings: Sendable, Equatable, Codable, LeafiyAppSettings {
         retentionDays = try container.decodeIfPresent(Int.self, forKey: .retentionDays) ?? defaults.retentionDays
         maxStorageMB = try container.decodeIfPresent(Int.self, forKey: .maxStorageMB) ?? defaults.maxStorageMB
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? defaults.launchAtLogin
-        showDockIcon = try container.decodeIfPresent(Bool.self, forKey: .showDockIcon) ?? defaults.showDockIcon
+        applicationIconMode = try container.decodeIfPresent(
+            LeafiyApplicationIconMode.self,
+            forKey: .applicationIconMode
+        ) ?? defaults.applicationIconMode
         isRecordingPaused = try container.decodeIfPresent(Bool.self, forKey: .isRecordingPaused) ?? defaults.isRecordingPaused
         appLanguage = try container.decodeIfPresent(String.self, forKey: .appLanguage) ?? defaults.appLanguage
         appearance = try container.decodeIfPresent(AppearanceMode.self, forKey: .appearance) ?? defaults.appearance

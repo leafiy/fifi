@@ -6,7 +6,7 @@ final class SettingsCodableTests: XCTestCase {
     func testAppSettingsDecodesMissingKeysAndPreservesPresentV1Keys() throws {
         let empty = try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8))
         XCTAssertFalse(empty.launchAtLogin)
-        XCTAssertTrue(empty.showDockIcon)
+        XCTAssertEqual(empty.applicationIconMode, .menuBar)
         XCTAssertEqual(try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(empty)), empty)
 
         let data = Data(
@@ -18,7 +18,7 @@ final class SettingsCodableTests: XCTestCase {
               "retentionDays": 7,
               "maxStorageMB": 128,
               "launchAtLogin": true,
-              "showDockIcon": false,
+              "applicationIconMode": "dock",
               "isRecordingPaused": true
             }
             """.utf8
@@ -32,7 +32,7 @@ final class SettingsCodableTests: XCTestCase {
         XCTAssertEqual(decoded.retentionDays, 7)
         XCTAssertEqual(decoded.maxStorageMB, 128)
         XCTAssertTrue(decoded.launchAtLogin)
-        XCTAssertFalse(decoded.showDockIcon)
+        XCTAssertEqual(decoded.applicationIconMode, .dock)
         XCTAssertTrue(decoded.isRecordingPaused)
         XCTAssertFalse(decoded.showPreviewPanel)
         XCTAssertFalse(decoded.showPickerFilters)
@@ -41,6 +41,12 @@ final class SettingsCodableTests: XCTestCase {
         XCTAssertTrue(decoded.showItemTime)
         XCTAssertTrue(decoded.showImageResolution)
         XCTAssertEqual(try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(decoded)), decoded)
+
+        let legacy = try JSONDecoder().decode(
+            AppSettings.self,
+            from: Data(#"{"showDockIcon":true}"#.utf8)
+        )
+        XCTAssertEqual(legacy.applicationIconMode, .menuBar)
     }
 
     func testAppSettingsEncodeDecodeRoundTripsAllFields() throws {
@@ -51,7 +57,7 @@ final class SettingsCodableTests: XCTestCase {
             retentionDays: 14,
             maxStorageMB: 64,
             launchAtLogin: true,
-            showDockIcon: false,
+            applicationIconMode: .dock,
             isRecordingPaused: true,
             appearance: .dark,
             rowDensity: .compact,
