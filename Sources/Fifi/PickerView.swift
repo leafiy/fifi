@@ -288,7 +288,7 @@ struct PickerView: View {
 /// full alpha and clipped by the panel's rounded `clipShape` like any other
 /// SwiftUI layer.
 private struct WindowBlurBackdrop: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
+    func makeNSView(context: Context) -> NSVisualEffectView { // leafiy-exception: frosted desktop backdrop of the picker Floating Panel; SwiftUI materials cannot sample behind a non-activating panel
         let view = NSVisualEffectView()
         view.material = .underWindowBackground
         view.blendingMode = .behindWindow
@@ -299,7 +299,7 @@ private struct WindowBlurBackdrop: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {} // leafiy-exception: frosted desktop backdrop of the picker Floating Panel
 }
 
 private struct PickerRowModel: Identifiable {

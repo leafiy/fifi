@@ -220,7 +220,7 @@ import FifiCore
         guard !warnedAccessibility else { return }
         warnedAccessibility = true
         NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
+        let alert = NSAlert() // leafiy-gap: LeafiyAlert
         alert.alertStyle = .warning
         alert.messageText = L("Fifi can’t paste automatically")
         alert.informativeText = L("The item WAS copied — press ⌘V to paste it manually.\n\nFor automatic paste, enable Fifi under System Settings → Privacy & Security → Accessibility. After rebuilding the app you must re-add it (the ad-hoc signature changes every build).")

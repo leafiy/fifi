@@ -116,7 +116,7 @@ struct PreviewPanel: View {
 
     private func swatchColor(_ color: ColorValue?) -> Color {
         guard let color else { return .clear }
-        return Color(red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
+        return Color(red: color.red, green: color.green, blue: color.blue, opacity: color.alpha) // leafiy-exception: the user-picked color value itself
     }
 
     private func imageDetail(_ item: ClipboardItem) -> some View {

@@ -313,7 +313,7 @@ struct PickerRowView: View {
 
     private var colorSwatch: Color {
         guard let components = ClipboardClassifier.hexColorComponents(colorText) else { return .clear }
-        return Color(red: components.r, green: components.g, blue: components.b, opacity: components.a)
+        return Color(red: components.r, green: components.g, blue: components.b, opacity: components.a) // leafiy-exception: the user-picked color value itself
     }
 
     private var filePath: String {

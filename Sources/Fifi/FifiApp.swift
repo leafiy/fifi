@@ -5,6 +5,7 @@ import LeafiyUI
 import LeafiyUICore
 import SwiftUI
 import UniformTypeIdentifiers
+// leafiy-gap-file: LeafiyAlert, LeafiyFilePanel — see leafiy-ui/.scratch/base-library-gaps/
 
 @main
 struct FifiApp: App {

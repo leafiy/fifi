@@ -1,5 +1,6 @@
 import AppKit
 import FifiCore
+import LeafiyUI
 import SwiftUI
 
 final class ThumbnailLoader {
@@ -51,7 +52,7 @@ struct ThumbnailView: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 5)
+            RoundedRectangle(cornerRadius: LeafiyDesign.Radius.control)
                 .fill(.quaternary)
             if let image {
                 Image(nsImage: image)
@@ -61,12 +62,12 @@ struct ThumbnailView: View {
                     .clipped()
             } else {
                 Image(systemName: "photo")
-                    .font(.system(size: 14))
+                    .font(.body)
                     .foregroundStyle(.secondary)
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .clipShape(RoundedRectangle(cornerRadius: LeafiyDesign.Radius.control))
         .onAppear(perform: load)
         .onChange(of: item.thumbnailPath) {
             image = nil
