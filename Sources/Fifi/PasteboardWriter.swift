@@ -1,5 +1,6 @@
 import ApplicationServices
 import AppKit
+import LeafiyUI
 import Foundation
 import FifiCore
 
@@ -219,14 +220,13 @@ import FifiCore
     private static func warnAccessibilityOnce() {
         guard !warnedAccessibility else { return }
         warnedAccessibility = true
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert() // leafiy-gap: LeafiyAlert
-        alert.alertStyle = .warning
-        alert.messageText = L("Fifi can’t paste automatically")
-        alert.informativeText = L("The item WAS copied — press ⌘V to paste it manually.\n\nFor automatic paste, enable Fifi under System Settings → Privacy & Security → Accessibility. After rebuilding the app you must re-add it (the ad-hoc signature changes every build).")
-        alert.addButton(withTitle: L("Open System Settings"))
-        alert.addButton(withTitle: L("OK"))
-        if alert.runModal() == .alertFirstButtonReturn {
+        let openSettings = LeafiyAlert.confirm(
+            L("Fifi can’t paste automatically"),
+            message: L("The item WAS copied — press ⌘V to paste it manually.\n\nFor automatic paste, enable Fifi under System Settings → Privacy & Security → Accessibility. After rebuilding the app you must re-add it (the ad-hoc signature changes every build)."),
+            confirmTitle: L("Open System Settings"),
+            cancelTitle: L("OK")
+        )
+        if openSettings {
             let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
             NSWorkspace.shared.open(url)
         }

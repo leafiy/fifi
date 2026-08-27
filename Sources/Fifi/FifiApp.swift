@@ -5,8 +5,6 @@ import LeafiyUI
 import LeafiyUICore
 import SwiftUI
 import UniformTypeIdentifiers
-// leafiy-gap-file: LeafiyAlert, LeafiyFilePanel — see leafiy-ui/.scratch/base-library-gaps/
-
 @main
 struct FifiApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -139,27 +137,24 @@ final class FifiAppState: ObservableObject {
     }
 
     func clearHistory(type: ClipItemType) {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = String(format: L("Clear all %@ items?"), type.fifiLabel)
-        alert.informativeText = L("This cannot be undone.")
-        alert.addButton(withTitle: L("Clear"))
-        alert.addButton(withTitle: L("Cancel"))
-        NSApp.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertFirstButtonReturn {
+        let confirmed = LeafiyAlert.confirm(
+            String(format: L("Clear all %@ items?"), type.fifiLabel),
+            message: L("This cannot be undone."),
+            confirmTitle: L("Clear"),
+            destructive: true
+        )
+        if confirmed {
             historyService?.clear(type: type)
         }
     }
 
     private func confirmClearHistory() -> Bool {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = L("Clear clipboard history?")
-        alert.informativeText = L("Pinned items will be kept. This cannot be undone.")
-        alert.addButton(withTitle: L("Clear"))
-        alert.addButton(withTitle: L("Cancel"))
-        NSApp.activate(ignoringOtherApps: true)
-        return alert.runModal() == .alertFirstButtonReturn
+        return LeafiyAlert.confirm(
+            L("Clear clipboard history?"),
+            message: L("Pinned items will be kept. This cannot be undone."),
+            confirmTitle: L("Clear"),
+            destructive: true
+        )
     }
 
     // MARK: - Import / export / backup / diagnostics
@@ -170,11 +165,7 @@ final class FifiAppState: ObservableObject {
 
     func exportSettings() {
         guard let settingsStore, let ignoreRulesStore else { return }
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "fifi-settings.json"
-        panel.allowedContentTypes = [.json]
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = LeafiyFilePanel.save(suggestedName: "fifi-settings.json", types: [.json]) else { return }
         do {
             let export = SettingsExport(
                 settings: settingsStore.sanitizedSettings(),
@@ -191,11 +182,7 @@ final class FifiAppState: ObservableObject {
 
     func importSettings() {
         guard let settingsStore, let ignoreRulesStore else { return }
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.json]
-        panel.allowsMultipleSelection = false
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = LeafiyFilePanel.chooseFile(types: [.json]) else { return }
         do {
             let export = try SettingsCodec.decode(try Data(contentsOf: url))
             settingsStore.replaceSettings(export.settings)
@@ -217,14 +204,11 @@ final class FifiAppState: ObservableObject {
 
     func backupHistory() {
         guard let historyService else { return }
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.prompt = L("Back Up Here")
-        panel.message = L("Choose a folder for the Fifi backup.")
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let base = panel.url else { return }
+        guard let base = LeafiyFilePanel.chooseFolder(
+            canCreateDirectories: true,
+            message: L("Choose a folder for the Fifi backup."),
+            prompt: L("Back Up Here")
+        ) else { return }
         let folder = base.appendingPathComponent("Fifi Backup", isDirectory: true)
         do {
             try historyService.exportBackup(to: folder)
@@ -235,30 +219,24 @@ final class FifiAppState: ObservableObject {
     }
 
     func restoreHistory() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.prompt = L("Restore")
-        panel.message = L("Choose a Fifi backup folder. Fifi will relaunch.")
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let folder = panel.url else { return }
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = L("Restore from backup?")
-        alert.informativeText = L("This replaces all current history and relaunches Fifi.")
-        alert.addButton(withTitle: L("Restore"))
-        alert.addButton(withTitle: L("Cancel"))
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        guard let folder = LeafiyFilePanel.chooseFolder(
+            canCreateDirectories: false,
+            message: L("Choose a Fifi backup folder. Fifi will relaunch."),
+            prompt: L("Restore")
+        ) else { return }
+        let confirmed = LeafiyAlert.confirm(
+            L("Restore from backup?"),
+            message: L("This replaces all current history and relaunches Fifi."),
+            confirmTitle: L("Restore"),
+            destructive: true
+        )
+        guard confirmed else { return }
         restoreHandler(folder)
     }
 
     func exportDiagnostics() {
         guard let historyService else { return }
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "fifi-diagnostics.txt"
-        panel.allowedContentTypes = [.plainText]
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = LeafiyFilePanel.save(suggestedName: "fifi-diagnostics.txt", types: [.plainText]) else { return }
         let report = historyService.diagnosticsReport(appVersion: Self.appVersion)
         do {
             try report.render().write(to: url, atomically: true, encoding: .utf8)
@@ -658,13 +636,12 @@ final class AppDelegate: LeafiyAppDelegate {
 
     private func presentStartupFailure(_ error: Error) {
         NSLog("Fifi startup failed: \(String(describing: error))")
-        let alert = NSAlert()
-        alert.alertStyle = .critical
-        alert.messageText = L("Fifi couldn’t start")
-        alert.informativeText = String(format: L("The history database could not be opened. Fifi will quit.\n\n%@"), error.localizedDescription)
-        alert.addButton(withTitle: L("Quit"))
-        NSApp.activate(ignoringOtherApps: true)
-        alert.runModal()
+        LeafiyAlert.notice(
+            L("Fifi couldn’t start"),
+            message: String(format: L("The history database could not be opened. Fifi will quit.\n\n%@"), error.localizedDescription),
+            style: .critical,
+            buttonTitle: L("Quit")
+        )
         NSApp.terminate(nil)
     }
 
@@ -673,13 +650,10 @@ final class AppDelegate: LeafiyAppDelegate {
         appState.hotkeyRegistrationMessage = String(format: L("Couldn’t register %@; another app may already own it."), display)
         guard !warnedHotkeyConflict else { return }
         warnedHotkeyConflict = true
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = L("Picker shortcut unavailable")
-        alert.informativeText = String(format: L("Fifi couldn’t register “%@” — another app probably owns it. You can still open the picker from the Fifi menu bar menu, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically."), display)
-        alert.addButton(withTitle: L("OK"))
-        alert.runModal()
+        LeafiyAlert.notice(
+            L("Picker shortcut unavailable"),
+            message: String(format: L("Fifi couldn’t register “%@” — another app probably owns it. You can still open the picker from the Fifi menu bar menu, or pick a different shortcut in Settings. This shortcut only opens the picker; copying with ⌘C is always recorded automatically."), display)
+        )
     }
 
     private func observeQuickShareStatus() {

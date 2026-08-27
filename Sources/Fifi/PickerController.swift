@@ -263,13 +263,10 @@ final class PickerController {
 
     private func presentQuickShareError(_ error: Error) {
         NSLog("Fifi quick share failed: %@", String(describing: error))
-        let alert = NSAlert() // leafiy-gap: LeafiyAlert
-        alert.alertStyle = .warning
-        alert.messageText = L("Quick Share failed")
-        alert.informativeText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-        alert.addButton(withTitle: L("OK"))
-        NSApp.activate(ignoringOtherApps: true)
-        alert.runModal()
+        LeafiyAlert.notice(
+            L("Quick Share failed"),
+            message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        )
     }
 
     private func positionPanel() {
