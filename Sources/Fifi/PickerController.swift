@@ -232,10 +232,10 @@ final class PickerController {
             }
             guard let self else { return }
             do {
-                let result = try await quickShareService.share(item: item, settings: settings)
-                PasteboardWriter.copyQuickShareLinks(result.clipboardText)
+                let links = try await quickShareService.share(item: item, settings: settings)
+                PasteboardWriter.copyQuickShareLinks(links)
                 historyService.markUsed(id: item.id)
-                notifyQuickShareSuccess(linkCount: result.links.count)
+                notifyQuickShareSuccess(linkCount: links.count)
             } catch {
                 presentQuickShareError(error)
             }
@@ -248,9 +248,7 @@ final class PickerController {
             guard granted else { return }
             let content = UNMutableNotificationContent()
             content.title = L("Quick Share complete")
-            content.body = linkCount == 1
-                ? L("Public link copied to clipboard.")
-                : String(format: L("%d public links copied to clipboard."), linkCount)
+            content.body = LeafiyQuickShare.linksCopiedMessage(count: linkCount)
             content.sound = .default
             let request = UNNotificationRequest(
                 identifier: "com.leafiy.fifi.quick-share-complete-\(UUID().uuidString)",
@@ -265,7 +263,7 @@ final class PickerController {
         NSLog("Fifi quick share failed: %@", String(describing: error))
         LeafiyAlert.notice(
             L("Quick Share failed"),
-            message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            message: LeafiyQuickShare.message(for: error)
         )
     }
 

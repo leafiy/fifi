@@ -1,4 +1,5 @@
 import Foundation
+import LeafiyUICore
 
 /// Snapshot of app health for support/debugging exports. Contains no
 /// clipboard content — counts, sizes, and configuration only.
@@ -76,8 +77,7 @@ public enum Diagnostics {
         let settingsJSON: String
         do {
             var safeSettings = settings
-            safeSettings.quickShare.accessKeyID = ""
-            safeSettings.quickShare.secretAccessKey = ""
+            safeSettings.quickShare = settings.quickShare.redactingCredentials()
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             settingsJSON = String(data: try encoder.encode(safeSettings), encoding: .utf8) ?? "{}"

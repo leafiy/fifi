@@ -69,12 +69,7 @@ final class SettingsStore: ObservableObject {
     /// intentionally redacted, as exports and diagnostics are now.
     func replaceSettings(_ imported: AppSettings) {
         var next = imported.normalized()
-        if next.quickShare.accessKeyID.isEmpty {
-            next.quickShare.accessKeyID = settings.quickShare.accessKeyID
-        }
-        if next.quickShare.secretAccessKey.isEmpty {
-            next.quickShare.secretAccessKey = settings.quickShare.secretAccessKey
-        }
+        next.quickShare = next.quickShare.restoringCredentials(from: settings.quickShare)
         settings = next
         save()
         applyLocalization()
@@ -82,8 +77,7 @@ final class SettingsStore: ObservableObject {
 
     private static func sanitized(_ settings: AppSettings) -> AppSettings {
         var sanitized = settings
-        sanitized.quickShare.accessKeyID = ""
-        sanitized.quickShare.secretAccessKey = ""
+        sanitized.quickShare = settings.quickShare.redactingCredentials()
         return sanitized
     }
 
